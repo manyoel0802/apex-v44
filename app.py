@@ -5,8 +5,9 @@ import numpy as np
 import requests
 import warnings
 import time
+from datetime import datetime
+import pytz
 from tradingview_screener import Query, Column
-from io import BytesIO
 
 warnings.filterwarnings('ignore')
 pd.options.mode.chained_assignment = None
@@ -46,7 +47,6 @@ def get_market_health():
 
 def quick_backtest(df):
     try:
-        # Simulasi Win Rate Squeeze dalam 1 tahun terakhir (Hold 5 hari)
         df['Squeeze_Trigger'] = (df['BW'] <= df['BW'].rolling(20).min().shift(1) * 1.1) & (df['Close'] > df['SMA50'])
         df['Future_Return'] = df['Close'].shift(-5) / df['Close'] - 1
         wins = df[(df['Squeeze_Trigger'] == True) & (df['Future_Return'] > 0)]
@@ -92,15 +92,31 @@ def check_fundamentals(ticker, df_hist):
         return eps > 0, eps, turnover >= 5_000_000_000, turnover
     except: return True, 0, True, 10e9
 
+# --- ⏳ PENGATURAN ZONA WAKTU (TIME GATE) ---
+tz_wib = pytz.timezone('Asia/Jakarta')
+waktu_sekarang = datetime.now(tz_wib)
+jam_sekarang = waktu_sekarang.time()
+
+jam_buka = datetime.strptime("08:30", "%H:%M").time()
+jam_tutup = datetime.strptime("16:30", "%H:%M").time()
+
+mesin_aktif = jam_buka <= jam_sekarang <= jam_tutup
+
 # --- UI HEADER ---
 st.markdown("""
 <div class='status-card bg-sector'>
     <h1 style='margin:0; color:#ddd6fe;'>🌍 GOD MODE V44.0: HEDGE FUND EDITION</h1>
     <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>
-        Market Breadth Lockdown | Anti-Correlation Matrix | Win-Rate Backtester
+        Full-Auto Mode | Time Gate 08:30 - 16:30 WIB | UptimeRobot Secured
     </p>
 </div>
 """, unsafe_allow_html=True)
+
+# Status Radar di Layar Utama
+if mesin_aktif:
+    st.success(f"🟢 RADAR AKTIF | Memindai Otomatis. Waktu saat ini: {waktu_sekarang.strftime('%H:%M')} WIB")
+else:
+    st.warning(f"🔴 RADAR ISTIRAHAT | Waktu saat ini: {waktu_sekarang.strftime('%H:%M')} WIB. Mesin akan otomatis menyala besok jam 08:30 WIB.")
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -110,25 +126,23 @@ with st.sidebar:
     st.divider()
     st.header("🛡️ Hedge Fund Filters")
     strict_sector = st.toggle("👑 Wajib Top 3 Sektor", value=True)
-    anti_correlation = st.toggle("🕸️ Anti-Korelasi", value=True, help="Maksimal 1 saham per sektor untuk mencegah kebangkrutan massal.")
-    bypass_lockdown = st.toggle("🚨 Bypass Market Lockdown", value=False, help="Paksa scan meskipun IHSG sedang hancur.")
+    anti_correlation = st.toggle("🕸️ Anti-Korelasi", value=True)
+    bypass_lockdown = st.toggle("🚨 Bypass Market Lockdown", value=False)
     
     st.divider()
     st.header("⚙️ Capital & Risk")
-    capital = st.number_input("Portfolio (Rp)", value=5000000, step=1000000)
+    capital = st.number_input("Portfolio (Rp)", value=50000000, step=1000000)
     risk_pct = st.slider("Max Loss Per Trade (%)", 0.5, 5.0, 2.0, step=0.5)
 
-# --- EXECUTION ENGINE ---
-if st.button("🚀 ENGAGE QUANTITATIVE SCAN", use_container_width=True, type="primary"):
-    # FITUR 1: MARKET BREADTH LOCKDOWN
+# --- 🚀 EXECUTION ENGINE (BERJALAN OTOMATIS TANPA TOMBOL) ---
+if mesin_aktif:
     market_health, ihsg_price = get_market_health()
     
     if market_health == "BEARISH" and not bypass_lockdown:
         st.markdown(f"""
         <div class='lockdown-box'>
             <h2 style='margin:0;'>⛔ MARKET LOCKDOWN AKTIF</h2>
-            <p>IHSG berada di bawah MA-50 (Bearish / Sedang Hancur). Algoritma menolak memberikan rekomendasi *Buy* untuk melindungi modal Anda. <i>Cash is King</i>.<br>
-            (Gunakan tombol Bypass di Sidebar jika Anda memaksa ingin *trading* melawan tren pasar).</p>
+            <p>IHSG Bearish. Algoritma menolak memberikan rekomendasi *Buy*. <i>Cash is King</i>.</p>
         </div>
         """, unsafe_allow_html=True)
         st.stop()
@@ -151,9 +165,9 @@ if st.button("🚀 ENGAGE QUANTITATIVE SCAN", use_container_width=True, type="pr
                 
                 df_scan = df_raw[df_raw['sector'].isin(top_3_sectors)] if strict_sector else df_raw
                 
-                pesan_tele = f"🌍 <b>V44.0 HEDGE FUND REPORT</b>\n"
+                pesan_tele = f"🌍 <b>V44.0 AUTO-RADAR ({waktu_sekarang.strftime('%H:%M')} WIB)</b>\n"
                 valid_stocks = []
-                used_sectors = [] # Untuk Anti-Korelasi
+                used_sectors = [] 
                 
                 for idx, row in df_scan.iterrows():
                     if len(valid_stocks) >= 3: break 
@@ -161,16 +175,13 @@ if st.button("🚀 ENGAGE QUANTITATIVE SCAN", use_container_width=True, type="pr
                     t_sym = row['name']
                     t_sector = row['sector']
                     
-                    # FITUR 2: ANTI-KORELASI
-                    if anti_correlation and t_sector in used_sectors:
-                        continue 
+                    if anti_correlation and t_sector in used_sectors: continue 
                     
                     time.sleep(1.2) 
                     df_hist = yf.Ticker(f"{t_sym}.JK").history(period="1y")
                     
                     if not df_hist.empty and check_minervini_template(df_hist):
                         is_profit, eps, _, turnover = check_fundamentals(t_sym, df_hist)
-                        
                         if not is_profit: continue
                         
                         if detect_squeeze(df_hist) and check_smart_money(df_hist):
@@ -178,9 +189,7 @@ if st.button("🚀 ENGAGE QUANTITATIVE SCAN", use_container_width=True, type="pr
                             lp = float(row['close'])
                             sma20 = df_hist['Close'].rolling(20).mean().iloc[-1]
                             
-                            # FITUR 3: QUICK BACKTEST WIN RATE
                             win_rate, triggers = quick_backtest(df_hist)
-                            
                             trigger_price = int(max(sma20, lp))
                             sl_price = int(trigger_price - (atr * 2.0)) 
                             target_price = int(trigger_price + (atr * 4.0)) 
@@ -189,54 +198,14 @@ if st.button("🚀 ENGAGE QUANTITATIVE SCAN", use_container_width=True, type="pr
                             
                             risk_rp = trigger_price - sl_price
                             rrr = round((target_price - trigger_price) / risk_rp, 1) if risk_rp > 0 else 0
-                            
                             if rrr < 2.0: continue 
                             
                             lot = int(((capital * (risk_pct/100)) / risk_rp) / 100) if risk_rp > 0 else 0
                             if lot == 0: continue
                             
-                            # Catat Sektor yang sudah terpakai
                             used_sectors.append(t_sector)
                             
-                            turnover_m = turnover / 1_000_000_000
-                            rank_sektor = top_3_sectors.index(t_sector) + 1 if t_sector in top_3_sectors else "Lainnya"
-                            
-                            # Rekam ke Jurnal
-                            valid_stocks.append({
-                                "Saham": t_sym, "Sektor": t_sector, "Trigger": trigger_price,
-                                "Lot": lot, "SL": sl_price, "TP": target_price, "TS_Pct": ts_pct, "WinRate_%": win_rate
-                            })
-                            
-                            # TAMPILAN MATRIKS
-                            html_card = f"""
-                            <div class='stock-card'>
-                                <h2 style='margin:0;'>{t_sym} <span class='sector-badge'>SEKTOR RANK #{rank_sektor}</span></h2>
-                                <p style='color:#a1a1aa; font-size:14px; margin:0 0 10px 0;'>Sektor: <b>{t_sector}</b> | Win Rate Historis: <b>{win_rate}%</b> ({triggers}x Squeeze)</p>
-                                
-                                <div style='background-color:#0d1117; padding:15px; border-radius:8px; border:1px solid #30363d; margin-top:10px;'>
-                                    <p style='margin:0 0 5px 0; color:#d4d4d8; font-weight:bold; font-size:12px; text-transform:uppercase;'>The Top-Down Matrix:</p>
-                                    <ul style='margin:0; padding-left:20px; font-size:14px; color:#8b5cf6; line-height:1.6;'>
-                                        <li><b>Macro Context:</b> {'Market Health Valid.' if market_health == 'BULLISH' else 'Bypass Lockdown Aktif.'}</li>
-                                        <li><b>Anti-Korelasi:</b> 1 Saham Terkuat dari Sektor {t_sector}.</li>
-                                        <li><b>Backtest:</b> Algoritma berhasil memprediksi {win_rate}% kenaikan pasca-Squeeze dalam 1 tahun terakhir.</li>
-                                    </ul>
-                                </div>
-                                
-                                <div style='background-color:#1e1b4b; border-left:4px solid #8b5cf6; padding:12px; margin-top:15px; border-radius:4px;'>
-                                    <p style='margin:0; font-size:13px; color:#c4b5fd;'>
-                                        <b>🚨 SOP HIBRIDA:</b> Beli <b>{lot} Lot</b> di <b>Rp {trigger_price}</b>. 
-                                        Jual 50% di <b>Rp {target_price}</b>. Kawal 50% dengan TS <b>{ts_pct}%</b>.
-                                    </p>
-                                </div>
-                            </div>
-                            """
-                            st.markdown(html_card, unsafe_allow_html=True)
-                            
-                            c1, c2, c3, c4 = st.columns(4)
-                            c1.metric("🎯 TRIGGER PRICE", f"Rp {trigger_price}")
-                            c2.metric("🛡️ STOP LOSS", f"Rp {sl_price}")
-                            c3.metric("💰 TP (50%)", f"Rp {target_price}")
-                            c4.metric("📈 TRAILING (50%)", f"{ts_pct}%")
+                            valid_stocks.append({"Saham": t_sym, "Trigger": trigger_price})
                             
                             pesan_tele += f"\n🌍 <b>{t_sym} ({t_sector})</b>\n"
                             pesan_tele += f"🚨 <b>{lot} Lot @ Rp {trigger_price}</b>\n"
@@ -245,23 +214,14 @@ if st.button("🚀 ENGAGE QUANTITATIVE SCAN", use_container_width=True, type="pr
                             pesan_tele += f"🧪 Hist. Win Rate: {win_rate}%\n"
 
                 if len(valid_stocks) > 0 and send_telegram:
-                    requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": pesan_tele, "parse_mode": "HTML"})
+                    # Timeout 10 detik ditambahkan agar aplikasi tidak hang jika Telegram bermasalah
+                    requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": pesan_tele, "parse_mode": "HTML"}, timeout=10)
                 
-                status.update(label=f"Scan & Backtest Selesai!", state="complete", expanded=False)
-                
-                if len(valid_stocks) == 0: 
-                    st.warning("Mesin tidak menemukan setup yang lolos semua filter Institusi hari ini.")
-                else:
-                    # FITUR 4: JURNAL TRADING (DOWNLOAD CSV)
-                    st.divider()
-                    df_jurnal = pd.DataFrame(valid_stocks)
-                    csv = df_jurnal.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="📥 Download Jurnal Trading (CSV)",
-                        data=csv,
-                        file_name=f"Jurnal_V44_{pd.Timestamp.now().strftime('%Y-%m-%d')}.csv",
-                        mime="text/csv",
-                    )
-            else: st.error("Gagal menarik data sektor dari pasar.")
+                status.update(label=f"Auto-Scan Selesai!", state="complete", expanded=False)
+            else: st.error("Gagal menarik data sektor.")
         except Exception as e:
-            st.error(f"Engine Error: {e}")
+            pass # Menyembunyikan pesan error dari layar agar aplikasi tetap tenang saat auto-run
+
+else:
+    # Tampilan saat di luar jam operasional (UptimeRobot tetap nge-ping tanpa masalah)
+    st.info("Pangkalan V44.0 sedang istirahat. Server diamankan dari mode Sleep oleh UptimeRobot.")

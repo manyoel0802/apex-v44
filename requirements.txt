@@ -1,0 +1,7 @@
+streamlit
+pandas
+tradingview-screener
+yfinance
+plotly
+requests
+numpy

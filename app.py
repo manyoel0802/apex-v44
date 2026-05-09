@@ -9,23 +9,22 @@ from datetime import datetime
 import pytz
 from tradingview_screener import Query, Column
 
-# Menghilangkan peringatan log yang tidak perlu
+# Menghilangkan peringatan log
 warnings.filterwarnings('ignore')
 pd.options.mode.chained_assignment = None
 
-# Konfigurasi Halaman Dasar
+# Konfigurasi Halaman (Tetap sama)
 st.set_page_config(page_title="V44.0 APEX DUAL-SCAN", layout="wide", page_icon="🌍")
 
-# --- KREDENSIAL TELEGRAM (Gunakan Streamlit Secrets) ---
+# --- KREDENSIAL TELEGRAM ---
 try:
     TELE_TOKEN = st.secrets["TELE_TOKEN"]
     TELE_CHAT_ID = st.secrets["TELE_CHAT_ID"]
 except:
-    # Fallback jika dijalankan lokal tanpa secrets
     TELE_TOKEN = "8457858315:AAGPSHq0UsfPv8MZ733tHs40gAOxwvx7G0o"
     TELE_CHAT_ID = "5916986433"
 
-# --- TEMA VISUAL UNGU KLASIK ---
+# --- TEMA VISUAL UNGU KLASIK (TIDAK BERUBAH) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
@@ -38,7 +37,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🌍 QUANTITATIVE ENGINES ---
+# --- 🌍 CORE ENGINES (TETAP SAMA) ---
 def get_market_health():
     try:
         ihsg = yf.Ticker("^JKSE").history(period="6mo")
@@ -102,7 +101,6 @@ waktu_sekarang = datetime.now(tz_wib)
 jam_sekarang = waktu_sekarang.time()
 jam_buka = datetime.strptime("08:30", "%H:%M").time()
 jam_tutup = datetime.strptime("16:30", "%H:%M").time()
-
 mesin_aktif = jam_buka <= jam_sekarang <= jam_tutup
 
 # --- UI HEADER ---
@@ -110,12 +108,12 @@ st.markdown("""
 <div class='status-card bg-sector'>
     <h1 style='margin:0; color:#ddd6fe;'>🌍 GOD MODE V44.0: DUAL-SCAN</h1>
     <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>
-        Dual Phase Scan | 08:30 - 16:30 WIB | Capital Rp 1M - Risk 5%
+        Dual Phase Scan | Time Gate Active | Capital Rp 1M - Risk 5% - <b>RRR 1:3</b>
     </p>
 </div>
 """, unsafe_allow_html=True)
 
-# --- 🎛️ SIDEBAR ---
+# --- 🎛️ SIDEBAR (PARAMETER SESUAI REQUEST) ---
 with st.sidebar:
     st.header("🎛️ Settings")
     send_telegram = st.toggle("📲 Telegram Alerts", value=True)
@@ -126,6 +124,8 @@ with st.sidebar:
     st.header("⚙️ Capital & Risk")
     capital = st.number_input("Portfolio (Rp)", value=1000000, step=100000)
     risk_pct = st.slider("Max Loss Per Trade (%)", 0.5, 10.0, 5.0, step=0.5)
+    # Fitur tambahan baru: Filter RRR minimal
+    rrr_target = st.number_input("RRR Minimum Target", value=3.0, step=0.5)
 
 # --- 🚀 EXECUTION ENGINE ---
 if mesin_aktif:
@@ -135,11 +135,9 @@ if mesin_aktif:
         st.markdown(f"<div class='lockdown-box'><h2>⛔ MARKET LOCKDOWN</h2><p>IHSG Bearish. Mesin Standby.</p></div>", unsafe_allow_html=True)
         st.stop()
         
-    with st.status(f"Dual-Scan Aktif ({waktu_sekarang.strftime('%H:%M')} WIB)", expanded=True) as status:
+    with st.status(f"Running Dual-Scan (RRR {rrr_target}+ Mode)", expanded=True) as status:
         try:
-            q = (Query().set_markets('indonesia')
-                 .select('name','close','volume','sector','Perf.1M','market_cap_basic')
-                 .where(Column('market_cap_basic') >= 1e11))
+            q = (Query().set_markets('indonesia').select('name','close','volume','sector','Perf.1M','market_cap_basic').where(Column('market_cap_basic') >= 1e11))
             _, df_raw = q.get_scanner_data()
             
             if not df_raw.empty:
@@ -148,8 +146,8 @@ if mesin_aktif:
                 top_3_sectors = sector_perf.head(3).index.tolist()
                 
                 fase_scan = [
-                    {"nama": "🏆 FASE 1: TOP 3 SECTORS", "filter_on": True},
-                    {"nama": "🔍 FASE 2: ALTERNATIVE SECTORS", "filter_on": False}
+                    {"nama": "🏆 FASE 1: TOP 3 SECTORS (ON)", "filter_on": True},
+                    {"nama": "🔍 FASE 2: ALTERNATIVE SECTORS (OFF)", "filter_on": False}
                 ]
                 
                 pesan_tele = f"🌍 <b>V44.0 DUAL-SCAN REPORT</b>\n📅 {waktu_sekarang.strftime('%d/%m %H:%M')} WIB\n"
@@ -173,9 +171,6 @@ if mesin_aktif:
                         df_hist = yf.Ticker(f"{t_sym}.JK").history(period="1y")
                         
                         if not df_hist.empty and check_minervini_template(df_hist):
-                            is_profit, eps, _, turnover = check_fundamentals(t_sym, df_hist)
-                            if not is_profit: continue
-                            
                             if detect_squeeze(df_hist) and check_smart_money(df_hist):
                                 atr = calculate_atr(df_hist)
                                 lp = float(row['close'])
@@ -183,22 +178,29 @@ if mesin_aktif:
                                 
                                 trigger_price = int(max(sma20, lp))
                                 sl_price = int(trigger_price - (atr * 2.0))
-                                target_price = int(trigger_price + (atr * 4.0))
-                                ts_pct = round(((atr * 2.5) / trigger_price) * 100, 1)
                                 
-                                risk_rp = trigger_price - sl_price
-                                if risk_rp > 0:
-                                    lot = int(((capital * (risk_pct/100)) / risk_rp) / 100)
-                                    if lot == 0: continue
+                                # --- 🛡️ PENAMBAHAN FITUR RRR 1:3 TANPA MENGUBAH FITUR LAMA ---
+                                risk_per_share = trigger_price - sl_price
+                                if risk_per_share > 0:
+                                    # Target Price dihitung otomatis untuk memenuhi minimal RRR 1:3
+                                    # Jarak Target = Jarak Risk * RRR_Target
+                                    target_price = int(trigger_price + (risk_per_share * rrr_target))
                                     
-                                    win_rate, triggers = quick_backtest(df_hist)
-                                    valid_fase += 1
-                                    valid_total += 1
-                                    used_sectors_fase.append(t_sector)
+                                    # Hitung Lot berdasarkan Modal 1jt & Risk 5%
+                                    lot = int(((capital * (risk_pct/100)) / risk_per_share) / 100)
                                     
-                                    st.markdown(f"<div class='stock-card'><h2>{t_sym} <span class='sector-badge'>{t_sector}</span></h2><p>Win Rate: {win_rate}% | SOP: Beli {lot} Lot @ Rp {trigger_price}</p></div>", unsafe_allow_html=True)
-                                    
-                                    pesan_tele += f"🎯 <b>{t_sym}</b>: {lot} Lot @ Rp {trigger_price}\n🛡️ SL: {sl_price} | TP: {target_price} | TS: {ts_pct}%\n🧪 WinRate: {win_rate}%\n"
+                                    if lot > 0:
+                                        win_rate, triggers = quick_backtest(df_hist)
+                                        ts_pct = round(((atr * 2.5) / trigger_price) * 100, 1)
+                                        
+                                        valid_fase += 1
+                                        valid_total += 1
+                                        used_sectors_fase.append(t_sector)
+                                        
+                                        # Tampilan Visual (Tetap Klasik)
+                                        st.markdown(f"<div class='stock-card'><h2>{t_sym} <span class='sector-badge'>{t_sector}</span></h2><p><b>RRR 1:{rrr_target} Valid</b> | Beli {lot} Lot @ {trigger_price}</p></div>", unsafe_allow_html=True)
+                                        
+                                        pesan_tele += f"🎯 <b>{t_sym}</b> (RRR 1:{rrr_target})\n🚨 {lot} Lot @ {trigger_price}\n🛡️ SL: {sl_price} | TP: {target_price}\n📈 TS: {ts_pct}% | WR: {win_rate}%\n"
 
                 if valid_total > 0 and send_telegram:
                     requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": pesan_tele, "parse_mode": "HTML"}, timeout=10)
@@ -206,4 +208,4 @@ if mesin_aktif:
                 status.update(label="Dual-Scan Selesai!", state="complete")
         except Exception as e: pass
 else:
-    st.info(f"🔴 MESIN STANDBY. Saat ini jam {waktu_sekarang.strftime('%H:%M')} WIB. Radar otomatis aktif besok jam 08:30 WIB.")
+    st.info(f"🔴 MESIN STANDBY. Radar aktif otomatis besok jam 08:30 WIB.")

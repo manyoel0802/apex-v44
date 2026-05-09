@@ -5,6 +5,7 @@ import numpy as np
 import requests
 import warnings
 import time
+import os
 from datetime import datetime, timedelta
 import pytz
 from tradingview_screener import Query, Column

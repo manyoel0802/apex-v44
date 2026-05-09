@@ -5,7 +5,7 @@ import numpy as np
 import requests
 import warnings
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 from tradingview_screener import Query, Column
 import plotly.graph_objects as go
@@ -32,7 +32,6 @@ st.markdown("""
     .stock-card { background-color: #1c2128; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-top: 15px; border-left: 5px solid #8b5cf6; }
     .sector-badge { background-color: #8b5cf6; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
     .lockdown-box { background-color: #450a0a; border: 1px solid #dc2626; padding: 15px; border-radius: 8px; color: #fca5a5; margin-bottom:20px; }
-    .mtf-badge { background-color: #059669; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -41,29 +40,14 @@ def get_market_health():
     try:
         ihsg = yf.Ticker("^JKSE").history(period="6mo")
         ihsg['SMA50'] = ihsg['Close'].rolling(50).mean()
-        curr_close = ihsg['Close'].iloc[-1]
-        return "BULLISH" if curr_close > ihsg['SMA50'].iloc[-1] else "BEARISH", curr_close
+        return "BULLISH" if ihsg['Close'].iloc[-1] > ihsg['SMA50'].iloc[-1] else "BEARISH", ihsg['Close'].iloc[-1]
     except: return "NEUTRAL", 0
 
 def check_weekly_confirmation(ticker):
-    """Fitur 1: Multi-Timeframe Confirmation"""
     try:
         w_data = yf.Ticker(f"{ticker}.JK").history(period="1y", interval="1wk")
-        w_sma20 = w_data['Close'].rolling(20).mean().iloc[-1]
-        return w_data['Close'].iloc[-1] > w_sma20
+        return w_data['Close'].iloc[-1] > w_data['Close'].rolling(20).mean().iloc[-1]
     except: return True
-
-def check_news_sentiment(ticker):
-    """Fitur 4: Basic News Scanner (Placeholder Logic)"""
-    # Menggunakan yfinance news jika tersedia
-    try:
-        news = yf.Ticker(f"{ticker}.JK").news
-        bad_keywords = ['gugatan', 'pkpu', 'suspend', 'rugi', 'kasus', 'fraud']
-        for item in news[:3]:
-            if any(word in item['title'].lower() for word in bad_keywords):
-                return False, item['title']
-        return True, "Clean"
-    except: return True, "No Data"
 
 def calculate_atr(df, period=14):
     try:
@@ -82,8 +66,8 @@ def detect_squeeze(df):
 def check_minervini_template(df):
     try:
         if len(df) < 200: return False
-        c, sma50, sma150, sma200 = df['Close'].iloc[-1], df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
-        return (c > sma150 and c > sma200 and sma150 > sma200 and sma50 > sma150 and c > sma50)
+        c, s50, s150, s200 = df['Close'].iloc[-1], df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
+        return (c > s150 and c > s200 and s150 > s200 and s50 > s150 and c > s50)
     except: return False
 
 # --- ⏳ TIME GATE WIB ---
@@ -94,21 +78,33 @@ mesin_aktif = datetime.strptime("08:30", "%H:%M").time() <= waktu_sekarang.time(
 # --- UI HEADER ---
 st.markdown(f"""
 <div class='status-card bg-sector'>
-    <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: HEDGE FUND EDITION</h1>
+    <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX</h1>
     <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>
-        MTF Weekly Confirmation | Dynamic Pyramiding | Sentiment Scanner | Performance Dashboard
+        Dual-Scan | RRR 1:3 | Risk 5% | MTF Confirmation
     </p>
 </div>
 """, unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
-    st.header("🎛️ Settings")
+    st.header("🎛️ Command Center")
     capital = st.number_input("Portfolio (Rp)", value=1000000, step=100000)
     risk_pct = st.slider("Max Loss Per Trade (%)", 0.5, 10.0, 5.0, step=0.5)
     rrr_min = st.number_input("Min RRR Target", value=3.0, step=0.5)
+    
     st.divider()
-    show_analytics = st.toggle("📊 Show Performance Dashboard", value=False)
+    # --- FITUR BARU: TOMBOL TEST TELEGRAM ---
+    if st.button("🧪 Test Telegram Connection", use_container_width=True):
+        test_msg = "🚀 <b>TEST KONEKSI BERHASIL!</b>\nLapor Kapten, jalur intelijen V45.0 OMNI-APEX telah terhubung sempurna ke perangkat Anda."
+        try:
+            res = requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
+                                data={"chat_id": TELE_CHAT_ID, "text": test_msg, "parse_mode": "HTML"}, timeout=10)
+            if res.status_code == 200: st.success("Pesan terkirim ke Telegram!")
+            else: st.error(f"Gagal! Error: {res.status_code}")
+        except Exception as e: st.error(f"Koneksi Error: {e}")
+    
+    st.divider()
+    show_analytics = st.toggle("📊 Performance Dashboard", value=False)
     bypass_lockdown = st.toggle("🚨 Bypass Lockdown", value=False)
 
 # --- 🚀 EXECUTION ENGINE ---
@@ -120,7 +116,6 @@ if mesin_aktif:
         
     with st.status(f"Omni-Scan Running ({waktu_sekarang.strftime('%H:%M')} WIB)", expanded=True) as status:
         try:
-            # Data Cleaning (Feature 5): yfinance auto_adjust=True digunakan di loop bawah
             q = (Query().set_markets('indonesia').select('name','close','sector','Perf.1M','market_cap_basic').where(Column('market_cap_basic') >= 1e11))
             _, df_raw = q.get_scanner_data()
             
@@ -141,16 +136,10 @@ if mesin_aktif:
                         t_sym, t_sector = row['name'], row['sector']
                         
                         time.sleep(1.2)
-                        # Data Cleaning: auto_adjust=True memastikan harga sudah disesuaikan stock split
                         df_hist = yf.Ticker(f"{t_sym}.JK").history(period="1y", auto_adjust=True)
                         
                         if not df_hist.empty and check_minervini_template(df_hist) and detect_squeeze(df_hist):
-                            # Feature 1: Weekly Confirmation
                             if not check_weekly_confirmation(t_sym): continue
-                            
-                            # Feature 4: News Sentiment
-                            is_safe_news, news_msg = check_news_sentiment(t_sym)
-                            if not is_safe_news: continue
                             
                             atr = calculate_atr(df_hist)
                             trigger = int(max(df_hist['Close'].rolling(20).mean().iloc[-1], float(row['close'])))
@@ -163,49 +152,31 @@ if mesin_aktif:
                                     used_fase += 1
                                     valid_total += 1
                                     
-                                    # Feature 2: Pyramiding Logic (Scaling In)
-                                    p1 = f"Entry 1: {int(lot*0.5)} Lot @ {trigger}"
-                                    p2 = f"Entry 2: {int(lot*0.5)} Lot @ {int(trigger*1.02)} (If Bullish)"
-                                    
                                     st.markdown(f"""
                                     <div class='stock-card'>
-                                        <h3>{t_sym} <span class='sector-badge'>{t_sector}</span> <span class='mtf-badge'>WEEKLY CONFIRMED</span></h3>
-                                        <p style='font-size:13px; color:#9ca3af;'>News Status: {news_msg}</p>
-                                        <p><b>🛡️ Pyramiding Plan:</b><br>{p1}<br>{p2}</p>
-                                        <p><b>SL: {sl} | TP: {tp}</b></p>
+                                        <h3>{t_sym} <span class='sector-badge'>{t_sector}</span></h3>
+                                        <p><b>SOP: {lot} Lot @ {trigger}</b><br>SL: {sl} | TP: {tp}</p>
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    pesan_tele += f"\n🎯 <b>{t_sym}</b> (RRR 1:{rrr_min})\n🏗️ {p1}\n🚀 {p2}\n🛡️ SL: {sl} | TP: {tp}\n"
+                                    pesan_tele += f"\n🎯 <b>{t_sym}</b> (RRR 1:{rrr_min})\n🚨 {lot} Lot @ {trigger}\n🛡️ SL: {sl} | TP: {tp}\n"
 
                 if valid_total > 0:
                     requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": pesan_tele, "parse_mode": "HTML"}, timeout=10)
                 
                 status.update(label="Omni-Scan Complete!", state="complete")
-        except Exception as e: st.error(f"Error: {e}")
+        except Exception as e: pass
 
-# --- 📊 FEATURE 3: PERFORMANCE DASHBOARD (EQUITY CURVE) ---
+# --- 📊 ANALYTICS DASHBOARD ---
 if show_analytics:
     st.divider()
     st.header("📊 Performance Analytics")
-    uploaded_file = st.file_uploader("Upload Jurnal Trading (CSV) untuk Analisis", type="csv")
-    
+    uploaded_file = st.file_uploader("Upload Trading Journal (CSV)", type="csv")
     if uploaded_file:
         df_perf = pd.read_csv(uploaded_file)
         if 'Profit' in df_perf.columns:
             df_perf['Equity'] = capital + df_perf['Profit'].cumsum()
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df_perf.index, y=df_perf['Equity'], mode='lines+markers', name='Equity Curve', line=dict(color='#8b5cf6')))
-            fig.update_layout(title="Pertumbuhan Modal (Equity Curve)", template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig, use_container_width=True)
-            
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Trades", len(df_perf))
-            c2.metric("Win Rate", f"{(len(df_perf[df_perf['Profit'] > 0]) / len(df_perf) * 100):.1f}%")
-            c3.metric("Final Equity", f"Rp {df_perf['Equity'].iloc[-1]:,.0f}")
-    else:
-        st.info("Silakan unggah file CSV jurnal trading Anda untuk melihat grafik pertumbuhan modal.")
-
+            st.plotly_chart(go.Figure(go.Scatter(x=df_perf.index, y=df_perf['Equity'], mode='lines', line=dict(color='#8b5cf6'))).update_layout(template="plotly_dark"), use_container_width=True)
+    else: st.info("Unggah CSV untuk melihat pertumbuhan modal.")
 else:
-    if not mesin_aktif:
-        st.info(f"🔴 RADAR STANDBY. Aktif otomatis jam 08:30 WIB. (Waktu saat ini: {waktu_sekarang.strftime('%H:%M')} WIB)")
+    if not mesin_aktif: st.info(f"🔴 RADAR STANDBY. Aktif otomatis jam 08:30 WIB.")

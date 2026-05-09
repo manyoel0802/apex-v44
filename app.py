@@ -11,7 +11,7 @@ import pytz
 from tradingview_screener import Query, Column
 import plotly.graph_objects as go
 
-# --- CONFIG & SECURITY (V45.0 PRESERVED) ---
+# --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
 pd.options.mode.chained_assignment = None
 st.set_page_config(page_title="V45.0 OMNI-APEX", layout="wide", page_icon="🌍")
@@ -23,7 +23,7 @@ except:
     TELE_TOKEN = "8457858315:AAGPSHq0UsfPv8MZ733tHs40gAOxwvx7G0o"
     TELE_CHAT_ID = "5916986433"
 
-# --- TEMA VISUAL UNGU KLASIK (PRESERVED) ---
+# --- TEMA VISUAL UNGU KLASIK (TIDAK DIUBAH) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
@@ -37,7 +37,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🌍 CORE ENGINES (V45.0 PRESERVED) ---
+# --- 🌍 CORE ENGINES (DIPERTAJAM SECARA SILUMAN) ---
 def get_market_health():
     try:
         ihsg = yf.Ticker("^JKSE").history(period="6mo")
@@ -81,7 +81,13 @@ def check_minervini_template(df):
     try:
         if len(df) < 200: return False
         c, sma50, sma150, sma200 = df['Close'].iloc[-1], df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
-        return (c > sma150 and c > sma200 and sma150 > sma200 and sma50 > sma150 and c > sma50)
+        
+        # 💉 SUNTIKAN 1: VOLUME FOOTPRINT (CANSLIM)
+        # Deteksi apakah ada ledakan volume > 150% dari rata-rata dalam 5 hari terakhir
+        vol_sma50 = df['Volume'].rolling(50).mean()
+        vol_spike = (df['Volume'].tail(5) > vol_sma50.tail(5) * 1.5).any()
+        
+        return (c > sma150 and c > sma200 and sma150 > sma200 and sma50 > sma150 and c > sma50 and vol_spike)
     except: return False
 
 # --- ⏳ TIME GATE WIB ---
@@ -128,7 +134,7 @@ if mesin_aktif:
                 fase_scan = [{"nama": "🏆 PHASE 1: LEADING", "on": True}, {"nama": "🔍 PHASE 2: ALT", "on": False}]
                 pesan_tele = f"🌍 <b>V45.0 OMNI-REPORT</b>\n"
                 valid_total = 0
-                scanned_tickers = [] # List untuk Macro Bridge
+                scanned_tickers = []
                 
                 for fase in fase_scan:
                     df_scan = df_raw[df_raw['sector'].isin(top_3_sectors)] if fase['on'] else df_raw[~df_raw['sector'].isin(top_3_sectors)]
@@ -153,10 +159,16 @@ if mesin_aktif:
                             
                             if (tp - trigger) / (trigger - sl) >= rrr_min:
                                 lot = int(((capital * (risk_pct/100)) / (trigger - sl)) / 100)
+                                
+                                # 💉 SUNTIKAN 2: PROGRESSIVE EXPOSURE (Rem Modal)
+                                # Jika IHSG Bearish tapi fitur bypass dinyalakan, potong Lot 50% untuk menekan risiko
+                                if market_health == "BEARISH":
+                                    lot = int(lot * 0.5)
+                                
                                 if lot > 0:
                                     used_fase += 1
                                     valid_total += 1
-                                    scanned_tickers.append(t_sym) # Simpan untuk sinkronisasi
+                                    scanned_tickers.append(t_sym)
                                     
                                     p1 = f"Entry 1: {int(lot*0.5)} Lot @ {trigger}"
                                     p2 = f"Entry 2: {int(lot*0.5)} Lot @ {int(trigger*1.02)} (If Bullish)"
@@ -170,37 +182,19 @@ if mesin_aktif:
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    # --- ANDROID MACRO BRIDGE FORMAT (🎯) ---
-                                    pesan_tele += f"\n🎯 <b>{t_sym}</b> (RRR 1:{rrr_min})\n🏗️ {p1}\n🚀 {p2}\n🛡️ SL: {sl} | TP: {tp}\n"
+                                    notif_otomatis = f"COMMAND_ADD:{t_sym}"
+                                    requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": notif_otomatis})
 
                 if valid_total > 0:
-                    requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": pesan_tele, "parse_mode": "HTML"}, timeout=10)
-                    st.session_state['last_scan'] = scanned_tickers
-                
+                    st.session_state['v45_scanned'] = scanned_tickers
                 status.update(label="Omni-Scan Complete!", state="complete")
         except Exception as e: st.error(f"Error: {e}")
 
-# --- 🛡️ THE GUARDIAN / EXIT MONITOR INTERFACE (NEW PLUGIN) ---
-if 'last_scan' in st.session_state and st.session_state['last_scan']:
-    st.divider()
-    st.subheader("🛡️ The Guardian Interface")
-    target_stock = st.selectbox("Pilih saham yang dieksekusi untuk dikawal Guardian:", st.session_state['last_scan'])
-    
-    if st.button("🛒 AKTIFKAN PENGKAWALAN"):
-        with open("portfolio.txt", "a") as f:
-            f.write(f"{target_stock}\n")
-        st.success(f"Berhasil! {target_stock} kini dalam pengawasan Exit Monitor.")
-        
-        notif = f"✅ <b>GUARDIAN ON:</b> {target_stock} masuk radar pengawasan Trailing Stop 5%."
-        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
-                      data={"chat_id": TELE_CHAT_ID, "text": notif, "parse_mode": "HTML"})
-
-# --- 📊 PERFORMANCE DASHBOARD (PRESERVED) ---
+# --- 📊 PERFORMANCE DASHBOARD ---
 if show_analytics:
     st.divider()
     st.header("📊 Performance Analytics")
     uploaded_file = st.file_uploader("Upload Jurnal Trading (CSV) untuk Analisis", type="csv")
-    
     if uploaded_file:
         df_perf = pd.read_csv(uploaded_file)
         if 'Profit' in df_perf.columns:
@@ -209,40 +203,25 @@ if show_analytics:
             fig.add_trace(go.Scatter(x=df_perf.index, y=df_perf['Equity'], mode='lines+markers', name='Equity Curve', line=dict(color='#8b5cf6')))
             fig.update_layout(title="Pertumbuhan Modal (Equity Curve)", template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig, use_container_width=True)
-            
             c1, c2, c3 = st.columns(3)
             c1.metric("Total Trades", len(df_perf))
             c2.metric("Win Rate", f"{(len(df_perf[df_perf['Profit'] > 0]) / len(df_perf) * 100):.1f}%")
             c3.metric("Final Equity", f"Rp {df_perf['Equity'].iloc[-1]:,.0f}")
-else:
-    if not mesin_aktif:
-        st.info(f"🔴 RADAR STANDBY. Aktif otomatis jam 08:30 WIB. (Waktu saat ini: {waktu_sekarang.strftime('%H:%M')} WIB)")
 
 # =========================================================
-# 🛠️ MODULE: AUTOMATIC PORTFOLIO MANAGER (V45.0 EXTENSION)
+# 🛠️ MODULE: AUTOMATIC PORTFOLIO MANAGER
 # =========================================================
 st.divider()
 st.subheader("🛡️ OMNI-APEX Portfolio Manager")
 
-# Fungsi Load & Save untuk Portfolio
 def load_portfolio():
     if os.path.exists("portfolio.txt"):
-        with open("portfolio.txt", "r") as f:
-            return list(set([line.strip().upper() for line in f.readlines() if line.strip()]))
+        with open("portfolio.txt", "r") as f: return list(set([line.strip().upper() for line in f.readlines() if line.strip()]))
     return []
 
-def save_portfolio(stocks):
-    with open("portfolio.txt", "w") as f:
-        for s in stocks:
-            f.write(f"{s}\n")
-
-# Layout Kolom untuk Tambah dan Hapus
 col_add, col_del = st.columns(2)
-
-# --- PANEL TAMBAH (BELI) ---
 with col_add:
     st.write("🛒 **Tambah Pantauan (Buy)**")
-    # Jika ada hasil scan, otomatis tampilkan pilihan
     if 'v45_scanned' in st.session_state and st.session_state['v45_scanned']:
         selected_to_buy = st.selectbox("Pilih saham hasil scan:", st.session_state['v45_scanned'], key="buy_select")
     else:
@@ -250,29 +229,19 @@ with col_add:
 
     if st.button("🛒 KONFIRMASI BELI & KAWAL"):
         if selected_to_buy:
-            current_p = load_portfolio()
-            if selected_to_buy not in current_p:
-                current_p.append(selected_to_buy)
-                save_portfolio(current_p)
-                st.success(f"✅ {selected_to_buy} masuk radar The Guardian!")
-                # Notif Telegram
-                requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
-                              data={"chat_id": TELE_CHAT_ID, "text": f"🛡️ <b>NEW ASSET:</b> {selected_to_buy} sekarang dikawal Exit Monitor.", "parse_mode": "HTML"})
-            else:
-                st.warning(f"{selected_to_buy} sudah ada dalam pantauan.")
+            requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{selected_to_buy}"})
+            st.success(f"✅ Sinyal dikirim ke The Guardian: {selected_to_buy}!")
 
-# --- PANEL HAPUS (SELL/EXIT) ---
 with col_del:
     st.write("🗑️ **Hapus Pantauan (Exit)**")
     current_portfolio = load_portfolio()
     if current_portfolio:
         to_delete = st.selectbox("Pilih saham yang ingin dilepas:", current_portfolio, key="del_select")
         if st.button("🗑️ HAPUS DARI PANTALUAN"):
-            current_portfolio.remove(to_delete)
-            save_portfolio(current_portfolio)
-            st.error(f"🗑️ {to_delete} dihapus dari radar.")
-            # Notif Telegram
-            requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
-                          data={"chat_id": TELE_CHAT_ID, "text": f"🚫 <b>REMOVED:</b> {to_delete} telah dikeluarkan dari pengawalan.", "parse_mode": "HTML"})
+            requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_DEL:{to_delete}"})
+            st.error(f"🗑️ Perintah hapus {to_delete} dikirim ke Termux.")
     else:
-        st.info("Portfolio kosong. Belum ada saham yang dikawal.")
+        st.info("Portfolio sedang disinkronisasi Termux...")
+
+if not mesin_aktif:
+    st.info(f"🔴 RADAR STANDBY. Aktif otomatis jam 08:30 WIB. (Waktu saat ini: {waktu_sekarang.strftime('%H:%M')} WIB)")

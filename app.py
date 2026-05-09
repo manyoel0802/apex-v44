@@ -216,3 +216,62 @@ if show_analytics:
 else:
     if not mesin_aktif:
         st.info(f"🔴 RADAR STANDBY. Aktif otomatis jam 08:30 WIB. (Waktu saat ini: {waktu_sekarang.strftime('%H:%M')} WIB)")
+
+# =========================================================
+# 🛠️ MODULE: AUTOMATIC PORTFOLIO MANAGER (V45.0 EXTENSION)
+# =========================================================
+st.divider()
+st.subheader("🛡️ OMNI-APEX Portfolio Manager")
+
+# Fungsi Load & Save untuk Portfolio
+def load_portfolio():
+    if os.path.exists("portfolio.txt"):
+        with open("portfolio.txt", "r") as f:
+            return list(set([line.strip().upper() for line in f.readlines() if line.strip()]))
+    return []
+
+def save_portfolio(stocks):
+    with open("portfolio.txt", "w") as f:
+        for s in stocks:
+            f.write(f"{s}\n")
+
+# Layout Kolom untuk Tambah dan Hapus
+col_add, col_del = st.columns(2)
+
+# --- PANEL TAMBAH (BELI) ---
+with col_add:
+    st.write("🛒 **Tambah Pantauan (Buy)**")
+    # Jika ada hasil scan, otomatis tampilkan pilihan
+    if 'v45_scanned' in st.session_state and st.session_state['v45_scanned']:
+        selected_to_buy = st.selectbox("Pilih saham hasil scan:", st.session_state['v45_scanned'], key="buy_select")
+    else:
+        selected_to_buy = st.text_input("Ketik Manual (Contoh: BRMS):", key="buy_manual").upper()
+
+    if st.button("🛒 KONFIRMASI BELI & KAWAL"):
+        if selected_to_buy:
+            current_p = load_portfolio()
+            if selected_to_buy not in current_p:
+                current_p.append(selected_to_buy)
+                save_portfolio(current_p)
+                st.success(f"✅ {selected_to_buy} masuk radar The Guardian!")
+                # Notif Telegram
+                requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
+                              data={"chat_id": TELE_CHAT_ID, "text": f"🛡️ <b>NEW ASSET:</b> {selected_to_buy} sekarang dikawal Exit Monitor.", "parse_mode": "HTML"})
+            else:
+                st.warning(f"{selected_to_buy} sudah ada dalam pantauan.")
+
+# --- PANEL HAPUS (SELL/EXIT) ---
+with col_del:
+    st.write("🗑️ **Hapus Pantauan (Exit)**")
+    current_portfolio = load_portfolio()
+    if current_portfolio:
+        to_delete = st.selectbox("Pilih saham yang ingin dilepas:", current_portfolio, key="del_select")
+        if st.button("🗑️ HAPUS DARI PANTALUAN"):
+            current_portfolio.remove(to_delete)
+            save_portfolio(current_portfolio)
+            st.error(f"🗑️ {to_delete} dihapus dari radar.")
+            # Notif Telegram
+            requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
+                          data={"chat_id": TELE_CHAT_ID, "text": f"🚫 <b>REMOVED:</b> {to_delete} telah dikeluarkan dari pengawalan.", "parse_mode": "HTML"})
+    else:
+        st.info("Portfolio kosong. Belum ada saham yang dikawal.")

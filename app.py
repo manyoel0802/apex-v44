@@ -6,6 +6,7 @@ import requests
 import warnings
 import time
 import os
+import gc # 🧹 Anti-OOM Sweeper (Optimasi RAM)
 from datetime import datetime, timedelta
 import pytz
 from tradingview_screener import Query, Column
@@ -22,7 +23,7 @@ except:
     TELE_TOKEN = "8457858315:AAGPSHq0UsfPv8MZ733tHs40gAOxwvx7G0o"
     TELE_CHAT_ID = "5916986433"
 
-# --- TEMA VISUAL UNGU KLASIK (TIDAK DIUBAH) ---
+# --- TEMA VISUAL UNGU KLASIK (PRESERVED) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
@@ -36,8 +37,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🌍 CORE ENGINES (OPTIMASI SILUMAN: CACHING IHSG) ---
-@st.cache_data(ttl=3600) # Data IHSG disimpan dalam memori selama 1 jam agar aplikasi secepat kilat
+# --- 🌍 CORE ENGINES (OPTIMASI SILUMAN: CACHING & RADAR) ---
+@st.cache_data(ttl=3600)
 def get_market_health():
     try:
         ihsg = yf.Ticker("^JKSE").history(period="6mo")
@@ -45,6 +46,16 @@ def get_market_health():
         curr_close = ihsg['Close'].iloc[-1]
         return "BULLISH" if curr_close > ihsg['SMA50'].iloc[-1] else "BEARISH", curr_close
     except: return "NEUTRAL", 0
+
+@st.cache_data(ttl=1800) # 💉 SUNTIKAN: Radar Caching (Anti-Ban TradingView)
+def get_tradingview_radar():
+    try:
+        q = (Query().set_markets('indonesia')
+             .select('name','close','sector','Perf.1M','market_cap_basic')
+             .where(Column('market_cap_basic') >= 1e11))
+        _, df = q.get_scanner_data()
+        return df
+    except: return pd.DataFrame()
 
 def check_weekly_confirmation(ticker):
     try:
@@ -94,7 +105,7 @@ mesin_aktif = datetime.strptime("08:30", "%H:%M").time() <= waktu_sekarang.time(
 # --- UI HEADER ---
 st.markdown(f"""
 <div class='status-card bg-sector'>
-    <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: HEDGE FUND EDITION</h1>
+    <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: WORLD CHAMPION EDITION</h1>
     <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>
         MTF Weekly Confirmation | Dynamic Pyramiding | Sentiment Scanner | Tactical Guardian
     </p>
@@ -119,15 +130,13 @@ if mesin_aktif:
         
     with st.status(f"Omni-Scan Running ({waktu_sekarang.strftime('%H:%M')} WIB)", expanded=True) as status:
         try:
-            q = (Query().set_markets('indonesia').select('name','close','sector','Perf.1M','market_cap_basic').where(Column('market_cap_basic') >= 1e11))
-            _, df_raw = q.get_scanner_data()
+            df_raw = get_tradingview_radar()
             
             if not df_raw.empty:
                 df_raw = df_raw.dropna(subset=['sector', 'Perf.1M'])
                 top_3_sectors = df_raw.groupby('sector')['Perf.1M'].mean().sort_values(ascending=False).head(3).index.tolist()
                 
                 fase_scan = [{"nama": "🏆 PHASE 1: LEADING", "on": True}, {"nama": "🔍 PHASE 2: ALT", "on": False}]
-                pesan_tele = f"🌍 <b>V45.0 OMNI-REPORT</b>\n"
                 valid_total = 0
                 scanned_tickers = []
                 
@@ -154,8 +163,7 @@ if mesin_aktif:
                             
                             if (tp - trigger) / (trigger - sl) >= rrr_min:
                                 lot = int(((capital * (risk_pct/100)) / (trigger - sl)) / 100)
-                                if market_health == "BEARISH":
-                                    lot = int(lot * 0.5)
+                                if market_health == "BEARISH": lot = int(lot * 0.5)
                                 
                                 if lot > 0:
                                     used_fase += 1
@@ -163,22 +171,28 @@ if mesin_aktif:
                                     scanned_tickers.append(t_sym)
                                     
                                     p1 = f"Entry 1: {int(lot*0.5)} Lot @ {trigger}"
-                                    p2 = f"Entry 2: {int(lot*0.5)} Lot @ {int(trigger*1.02)} (If Bullish)"
+                                    p2 = f"Entry 2: {int(lot*0.5)} Lot @ {int(trigger*1.02)}"
                                     
                                     st.markdown(f"""
                                     <div class='stock-card'>
                                         <h3>{t_sym} <span class='sector-badge'>{t_sector}</span> <span class='mtf-badge'>WEEKLY CONFIRMED</span></h3>
-                                        <p style='font-size:13px; color:#9ca3af;'>News Status: {news_msg}</p>
-                                        <p><b>🛡️ Pyramiding Plan:</b><br>{p1}<br>{p2}</p>
+                                        <p style='font-size:13px; color:#9ca3af;'>News: {news_msg}</p>
+                                        <p><b>🛡️ Pyramiding:</b><br>{p1}<br>{p2}</p>
                                         <p><b>SL: {sl} | TP: {tp}</b></p>
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    notif_otomatis = f"COMMAND_ADD:{t_sym}"
-                                    requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": notif_otomatis})
+                                    # 💉 SUNTIKAN: Fire & Forget Telegram (timeout=1)
+                                    try:
+                                        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
+                                                      data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{t_sym}"}, timeout=1)
+                                    except: pass
 
-                if valid_total > 0:
-                    st.session_state['v45_scanned'] = scanned_tickers
+                        # 💉 SUNTIKAN: Anti-OOM Sweeper (Bersihkan RAM di setiap putaran)
+                        del df_hist
+                        gc.collect()
+
+                if valid_total > 0: st.session_state['v45_scanned'] = scanned_tickers
                 status.update(label="Omni-Scan Complete!", state="complete")
         except Exception as e: st.error(f"Error: {e}")
 
@@ -197,25 +211,31 @@ col_add, col_del = st.columns(2)
 with col_add:
     st.write("🛒 **Tambah Pantauan (Buy)**")
     if 'v45_scanned' in st.session_state and st.session_state['v45_scanned']:
-        selected_to_buy = st.selectbox("Pilih saham hasil scan:", st.session_state['v45_scanned'], key="buy_select")
+        selected_to_buy = st.selectbox("Pilih saham:", st.session_state['v45_scanned'], key="buy_select")
     else:
-        selected_to_buy = st.text_input("Ketik Manual (Contoh: BRMS):", key="buy_manual").upper()
+        selected_to_buy = st.text_input("Ketik Manual:", key="buy_manual").upper()
 
-    if st.button("🛒 KONFIRMASI BELI & KAWAL"):
+    if st.button("🛒 KONFIRMASI BELI"):
         if selected_to_buy:
-            requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{selected_to_buy}"})
-            st.success(f"✅ Sinyal dikirim ke The Guardian: {selected_to_buy}!")
+            try:
+                requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
+                              data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{selected_to_buy}"}, timeout=1)
+            except: pass
+            st.success(f"✅ Perintah kirim ke Guardian: {selected_to_buy}!")
 
 with col_del:
     st.write("🗑️ **Hapus Pantauan (Exit)**")
     current_portfolio = load_portfolio()
     if current_portfolio:
-        to_delete = st.selectbox("Pilih saham yang ingin dilepas:", current_portfolio, key="del_select")
-        if st.button("🗑️ HAPUS DARI PANTALUAN"):
-            requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_DEL:{to_delete}"})
-            st.error(f"🗑️ Perintah hapus {to_delete} dikirim ke Termux.")
+        to_delete = st.selectbox("Hapus pantauan:", current_portfolio, key="del_select")
+        if st.button("🗑️ KONFIRMASI HAPUS"):
+            try:
+                requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
+                              data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_DEL:{to_delete}"}, timeout=1)
+            except: pass
+            st.error(f"🗑️ Perintah hapus {to_delete} dikirim.")
     else:
-        st.info("Portfolio kosong atau sedang disinkronisasi Termux...")
+        st.info("Portfolio sedang disinkronisasi...")
 
 if not mesin_aktif:
-    st.info(f"🔴 RADAR STANDBY. Aktif otomatis jam 08:30 WIB. (Waktu saat ini: {waktu_sekarang.strftime('%H:%M')} WIB)")
+    st.info(f"🔴 RADAR STANDBY. Aktif 08:30 WIB. (Sekarang: {waktu_sekarang.strftime('%H:%M')} WIB)")

@@ -115,6 +115,11 @@ st.markdown(f"""
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
     st.header("🎛️ Settings")
+    
+    # 💉 SUNTIKAN: Kolom API Key Berbayar diletakkan paling atas agar mudah dijangkau
+    premium_api_key = st.text_input("🔑 Premium API Key (Optional)", type="password", help="Masukkan API Key berbayar Kapten di sini jika ada.")
+    
+    st.divider()
     capital = st.number_input("Portfolio (Rp)", value=1000000, step=100000)
     risk_pct = st.slider("Max Loss Per Trade (%)", 0.5, 10.0, 5.0, step=0.5)
     rrr_min = st.number_input("Min RRR Target", value=3.0, step=0.5)

@@ -9,7 +9,6 @@ import os
 from datetime import datetime, timedelta
 import pytz
 from tradingview_screener import Query, Column
-import plotly.graph_objects as go
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
@@ -37,7 +36,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🌍 CORE ENGINES (DIPERTAJAM SECARA SILUMAN) ---
+# --- 🌍 CORE ENGINES (OPTIMASI SILUMAN: CACHING IHSG) ---
+@st.cache_data(ttl=3600) # Data IHSG disimpan dalam memori selama 1 jam agar aplikasi secepat kilat
 def get_market_health():
     try:
         ihsg = yf.Ticker("^JKSE").history(period="6mo")
@@ -81,12 +81,8 @@ def check_minervini_template(df):
     try:
         if len(df) < 200: return False
         c, sma50, sma150, sma200 = df['Close'].iloc[-1], df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
-        
-        # 💉 SUNTIKAN 1: VOLUME FOOTPRINT (CANSLIM)
-        # Deteksi apakah ada ledakan volume > 150% dari rata-rata dalam 5 hari terakhir
         vol_sma50 = df['Volume'].rolling(50).mean()
         vol_spike = (df['Volume'].tail(5) > vol_sma50.tail(5) * 1.5).any()
-        
         return (c > sma150 and c > sma200 and sma150 > sma200 and sma50 > sma150 and c > sma50 and vol_spike)
     except: return False
 
@@ -100,7 +96,7 @@ st.markdown(f"""
 <div class='status-card bg-sector'>
     <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: HEDGE FUND EDITION</h1>
     <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>
-        MTF Weekly Confirmation | Dynamic Pyramiding | Sentiment Scanner | Performance Dashboard
+        MTF Weekly Confirmation | Dynamic Pyramiding | Sentiment Scanner | Tactical Guardian
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -112,7 +108,6 @@ with st.sidebar:
     risk_pct = st.slider("Max Loss Per Trade (%)", 0.5, 10.0, 5.0, step=0.5)
     rrr_min = st.number_input("Min RRR Target", value=3.0, step=0.5)
     st.divider()
-    show_analytics = st.toggle("📊 Show Performance Dashboard", value=False)
     bypass_lockdown = st.toggle("🚨 Bypass Lockdown", value=False)
 
 # --- 🚀 EXECUTION ENGINE ---
@@ -159,9 +154,6 @@ if mesin_aktif:
                             
                             if (tp - trigger) / (trigger - sl) >= rrr_min:
                                 lot = int(((capital * (risk_pct/100)) / (trigger - sl)) / 100)
-                                
-                                # 💉 SUNTIKAN 2: PROGRESSIVE EXPOSURE (Rem Modal)
-                                # Jika IHSG Bearish tapi fitur bypass dinyalakan, potong Lot 50% untuk menekan risiko
                                 if market_health == "BEARISH":
                                     lot = int(lot * 0.5)
                                 
@@ -189,24 +181,6 @@ if mesin_aktif:
                     st.session_state['v45_scanned'] = scanned_tickers
                 status.update(label="Omni-Scan Complete!", state="complete")
         except Exception as e: st.error(f"Error: {e}")
-
-# --- 📊 PERFORMANCE DASHBOARD ---
-if show_analytics:
-    st.divider()
-    st.header("📊 Performance Analytics")
-    uploaded_file = st.file_uploader("Upload Jurnal Trading (CSV) untuk Analisis", type="csv")
-    if uploaded_file:
-        df_perf = pd.read_csv(uploaded_file)
-        if 'Profit' in df_perf.columns:
-            df_perf['Equity'] = capital + df_perf['Profit'].cumsum()
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df_perf.index, y=df_perf['Equity'], mode='lines+markers', name='Equity Curve', line=dict(color='#8b5cf6')))
-            fig.update_layout(title="Pertumbuhan Modal (Equity Curve)", template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig, use_container_width=True)
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Trades", len(df_perf))
-            c2.metric("Win Rate", f"{(len(df_perf[df_perf['Profit'] > 0]) / len(df_perf) * 100):.1f}%")
-            c3.metric("Final Equity", f"Rp {df_perf['Equity'].iloc[-1]:,.0f}")
 
 # =========================================================
 # 🛠️ MODULE: AUTOMATIC PORTFOLIO MANAGER
@@ -241,7 +215,7 @@ with col_del:
             requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_DEL:{to_delete}"})
             st.error(f"🗑️ Perintah hapus {to_delete} dikirim ke Termux.")
     else:
-        st.info("Portfolio sedang disinkronisasi Termux...")
+        st.info("Portfolio kosong atau sedang disinkronisasi Termux...")
 
 if not mesin_aktif:
     st.info(f"🔴 RADAR STANDBY. Aktif otomatis jam 08:30 WIB. (Waktu saat ini: {waktu_sekarang.strftime('%H:%M')} WIB)")

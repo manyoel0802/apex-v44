@@ -36,6 +36,7 @@ st.markdown("""
     .mtf-badge { background-color: #059669; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
     .ara-badge { background-color: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; font-weight: bold; }
     .heartbeat { font-family: monospace; color: #a78bfa; font-size: 14px; font-weight: bold; }
+    .v50-upgrade { color: #8b5cf6; font-size: 11px; font-style: italic; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -69,11 +70,13 @@ def add_today_signal(ticker):
                     f.write(s + "\n")
         except: pass
 
-# --- 🌍 CORE ENGINES ---
+# --- 🌍 CORE ENGINES (POIN 4: REDUNDANCY) ---
 @st.cache_data(ttl=3600)
 def get_market_health():
     try:
         ihsg = yf.Ticker("^JKSE").history(period="6mo")
+        if ihsg.empty: # Fallback Redundancy
+             ihsg = yf.Ticker("^JKSE").history(period="1y")
         ihsg['SMA50'] = ihsg['Close'].rolling(50).mean()
         curr_close = ihsg['Close'].iloc[-1]
         return "BULLISH" if curr_close > ihsg['SMA50'].iloc[-1] else "BEARISH", curr_close
@@ -82,6 +85,7 @@ def get_market_health():
 @st.cache_data(ttl=1800)
 def get_tradingview_radar():
     try:
+        # Poin 1: Kekuatan Sektor sudah difilter di level query
         q = (Query().set_markets('indonesia')
              .select('name','close','sector','Perf.1M','market_cap_basic')
              .where(
@@ -157,7 +161,7 @@ st.markdown(f"""
 <div class='status-card bg-sector'>
     <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: WORLD CHAMPION EDITION</h1>
     <div style='display: flex; justify-content: space-between; align-items: center;'>
-        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Turbo Scan Mode | Tactical Guardian</p>
+        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Turbo Scan Mode | Tactical Guardian | Elite Upgraded</p>
         <p class='heartbeat'>📡 LAST SCAN: {timestamp_scan} WIB</p>
     </div>
 </div>
@@ -187,6 +191,7 @@ if mesin_aktif:
             df_raw = get_tradingview_radar()
             if not df_raw.empty:
                 df_raw = df_raw.dropna(subset=['sector', 'Perf.1M'])
+                # Poin 1: Logika Rotasi Sektor (Backend Heatmap)
                 top_3_sectors = df_raw.groupby('sector')['Perf.1M'].mean().sort_values(ascending=False).head(3).index.tolist()
                 
                 valid_total = 0
@@ -200,26 +205,34 @@ if mesin_aktif:
                         if used_in_sector >= 2: break
                         t_sym = row['name']
                         time.sleep(0.3) 
+                        
+                        # Poin 4: Redundancy in individual fetch
                         df_hist = yf.Ticker(f"{t_sym}.JK").history(period="1y", auto_adjust=True)
+                        if df_hist.empty: continue
                         
                         bandar_check = detect_bandar_footprint(df_hist) if premium_mode else True
                         
-                        if not df_hist.empty and check_minervini_template(df_hist) and detect_squeeze(df_hist) and bandar_check:
+                        if check_minervini_template(df_hist) and detect_squeeze(df_hist) and bandar_check:
                             if not check_weekly_confirmation(t_sym): continue
                             is_safe_news, news_msg = check_news_sentiment(t_sym)
                             if not is_safe_news: continue
                             
+                            # Poin 2: Dynamic Volatility Stop Loss (ATR)
                             atr = calculate_atr(df_hist)
                             trigger = int(max(df_hist['Close'].rolling(20).mean().iloc[-1], float(row['close'])))
-                            sl = int(trigger - (atr * 2.0))
-                            tp = int(trigger + ((trigger - sl) * rrr_min))
-                            ts_5pct = int(trigger * 0.95)
+                            
+                            # Poin 3: Smart Scale-Out Strategy
+                            sl_volatility = int(trigger - (atr * 2.5))
+                            sl_stat_5pct = int(trigger * 0.95)
+                            
+                            tp1 = int(trigger + (trigger - sl_stat_5pct) * 1.5) # Scale out 50%
+                            tp2 = int(trigger + (trigger - sl_stat_5pct) * rrr_min) # Run the rest
                             
                             ara_check = detect_ara_momentum(df_hist)
                             ara_html = "<span class='ara-badge'>⚡ POTENSI ARA</span>" if ara_check else ""
                             
-                            if (tp - trigger) / (trigger - sl) >= rrr_min:
-                                lot = int(((capital * (risk_pct/100)) / (trigger - sl)) / 100)
+                            if (tp2 - trigger) / (trigger - sl_stat_5pct) >= rrr_min:
+                                lot = int(((capital * (risk_pct/100)) / (trigger - sl_stat_5pct)) / 100)
                                 if market_health == "BEARISH": lot = int(lot * 0.5)
                                 if lot > 0:
                                     used_in_sector += 1
@@ -230,7 +243,11 @@ if mesin_aktif:
                                     <div class='stock-card'>
                                         <h3>{t_sym} <span class='sector-badge'>{row['sector']}</span> <span class='mtf-badge'>WEEKLY CONFIRMED</span>{ara_html}</h3>
                                         <p style='font-size:13px; color:#9ca3af;'>News: {news_msg}</p>
-                                        <p><b>SL: {sl} | TP: {tp} | TS(5%): {ts_5pct}</b></p>
+                                        <p><b>🛡️ Scale-Out Plan:</b><br>
+                                        • TP1 (Secure 50%): {tp1}<br>
+                                        • TP2 (Moonshot): {tp2}</p>
+                                        <p><b>SL (Static 5%): {sl_stat_5pct} | SL (Smart ATR): {sl_volatility}</b></p>
+                                        <span class='v50-upgrade'>*Smart ATR menyesuaikan dengan gocekan pasar.</span>
                                     </div>
                                     """, unsafe_allow_html=True)
                                     

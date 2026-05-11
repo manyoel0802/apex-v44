@@ -11,7 +11,7 @@ import concurrent.futures
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V48.5 BULLETPROOF", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V48.6 GHOST PROTOCOL", layout="wide", page_icon="💎")
 
 # --- TEMA VISUAL SUPREME ---
 st.markdown("""
@@ -58,8 +58,7 @@ def fetch_stock_data(ticker, api_key=""):
                     df_temp['date'] = pd.to_datetime(df_temp['date'])
                     df_temp.set_index('date', inplace=True)
                     df_temp = df_temp.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'})
-                    for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-                        df_temp[col] = pd.to_numeric(df_temp[col], errors='coerce')
+                    for col in ['Open', 'High', 'Low', 'Close', 'Volume']: df_temp[col] = pd.to_numeric(df_temp[col], errors='coerce')
                     df_temp.sort_index(ascending=True, inplace=True)
                     if not df_temp.empty and len(df_temp) > 150:
                         df = df_temp
@@ -77,12 +76,16 @@ def fetch_stock_data(ticker, api_key=""):
         
     return df, source
 
-def run_deep_audit(ticker, ihsg_ret, api_key=""):
+def run_deep_audit(ticker, ihsg_ret, max_p, api_key=""):
     df, source = fetch_stock_data(ticker, api_key)
     if df.empty: return None, 0, source
     
     try:
         c, v = df['Close'].iloc[-1], df['Volume'].iloc[-1]
+        
+        # Budget Sniper Filter (Langsung tembak mati jika harga > batas modal)
+        if c > max_p: return None, 0, source
+        
         s50, s150, s200 = df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
         weekly_ma = df['Close'].rolling(30).mean().iloc[-1]
         rs_line = df['Close'] / yf.Ticker("^JKSE").history(period="2y")['Close'].reindex(df.index, method='ffill')
@@ -100,7 +103,7 @@ def run_deep_audit(ticker, ihsg_ret, api_key=""):
     except: return None, 0, source
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🏆 V48.5 PRESTIGE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Engine: GoAPI Strike ⚡ | Bulletproof TV Pipeline</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🏆 V48.6 GHOST PROTOCOL</h1><p style='margin:0; opacity:0.8;'>Engine: Full Independent V8 | Anti-Block System Active 🛡️</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -109,7 +112,7 @@ with st.sidebar:
     st.divider()
     goapi_key = st.text_input("🔑 GoAPI Key (Opsional/Gratis):", type="password")
     st.divider()
-    mode = st.radio("🚀 Scan Type", ["Turbo (Fast)", "Deep (Champion Audit)"], index=1)
+    mode = st.radio("🚀 Scan Type", ["Deep (Champion Audit)"], index=0, help="Mode Turbo dimatikan sementara karena TV bermasalah.")
     risk = st.slider("Max Risk (%)", 1.0, 10.0, 5.0)
     rrr = st.number_input("Min RRR Target", value=3.0)
     bypass = st.toggle("🚨 Bypass Market Time", value=False)
@@ -120,46 +123,47 @@ with st.sidebar:
 ihsg_ret, is_bullish, mkt_breadth = get_market_context()
 max_p = cap / 100
 
+# 🛡️ DAFTAR SAHAM LIKUID & ALPA (FALLBACK)
+fallback_universe = [
+    "BBCA", "BBRI", "BMRI", "BBNI", "AMMN", "BREN", "BRPT", "CUAN", "TPIA", 
+    "BRMS", "MEDC", "PGEO", "ADRO", "PTBA", "UNTR", "ICBP", "KLBF", "TLKM", 
+    "ASII", "GOTO", "MAPI", "AKRA", "ESSA", "MBMA", "NCKL", "PANI", "BSDE", 
+    "CTRA", "SMGR", "INTP", "EXCL", "ISAT", "MYOR", "UNVR", "ANTM", "INCO"
+]
+
 if is_market_open or bypass:
-    st.subheader(f"📡 {mode} Result (Market Cap > 500B)")
+    st.subheader(f"📡 Deep Result (Alpha Liquid Universe)")
+    
+    # ⚡ COBA TV DULU, JIKA GAGAL LANGSUNG PAKAI DAFTAR FALLBACK INTERNAL
     try:
-        # TAHAP 1: QUERI TRADINGVIEW SUPER AMAN
-        q = (Query().set_markets('indonesia')
-             .select('name','close','volume','sector')
-             .where(
-                 Column('market_cap_basic') >= 5e11, 
-                 Column('close') <= max_p, 
-                 Column('volume') >= 1000000 # Minimal 1 Juta lot volume harian
-             )
-             .order_by('volume', ascending=False)
-             .limit(15))
+        q = Query().set_markets('indonesia').select('name').limit(40)
         _, df_raw = q.get_scanner_data()
-        
+        tickers_to_scan = df_raw['name'].tolist()
+    except:
+        tickers_to_scan = fallback_universe
+        st.warning("⚠️ TradingView memblokir akses. Menggunakan 'Ghost Protocol' (Radar Mandiri).")
+
+    try:
         valid_signals = []
-        
-        # TAHAP 2: DEEP DIVE YFINANCE/GOAPI
-        if mode == "Turbo (Fast)":
-            for _, row in df_raw.iterrows(): valid_signals.append((row, {"Lolos Filter Likuiditas TV": True}, row['close'], "TradingView"))
-        else:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-                future_to_row = {executor.submit(run_deep_audit, row['name'], ihsg_ret, goapi_key): row for _, row in df_raw.iterrows()}
-                for future in concurrent.futures.as_completed(future_to_row):
-                    row = future_to_row[future]
-                    try:
-                        checks, prc, src = future.result()
-                        if checks and all(checks.values()): valid_signals.append((row, checks, prc, src))
-                    except: pass
-                    
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_row = {executor.submit(run_deep_audit, t, ihsg_ret, max_p, goapi_key): t for t in tickers_to_scan}
+            for future in concurrent.futures.as_completed(future_to_row):
+                t = future_to_row[future]
+                try:
+                    checks, prc, src = future.result()
+                    if checks and all(checks.values()): valid_signals.append((t, checks, prc, src))
+                except: pass
+                
         if valid_signals:
             cols = st.columns(2)
             v_idx = 0
-            for row, checks, prc, src in valid_signals:
+            for t, checks, prc, src in valid_signals:
                 sl, tp = int(prc*(1-risk/100)), int(prc + (prc*0.05)*rrr)
                 with cols[v_idx % 2]:
-                    st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='margin:0; color:#a78bfa;'>{row['name']}</h2><span class='sector-badge'>{row['sector']}</span></div><p style='font-size:10px; color:#9ca3af; margin:0; padding-top:5px;'>Data Source: {src}</p><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div><div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div></div><div class='pyramid-panel'><b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN:</b><br><span style='font-size:11px;'>Next Entry (+5%): <b>{int(prc*1.05)}</b> | Risk-Free SL: <b>{int(prc)}</b></span></div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='margin:0; color:#a78bfa;'>{t}</h2><span class='sector-badge'>IDX</span></div><p style='font-size:10px; color:#9ca3af; margin:0; padding-top:5px;'>Data Source: {src}</p><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div><div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div></div><div class='pyramid-panel'><b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN:</b><br><span style='font-size:11px;'>Next Entry (+5%): <b>{int(prc*1.05)}</b> | Risk-Free SL: <b>{int(prc)}</b></span></div></div>", unsafe_allow_html=True)
                 v_idx += 1
-        else: st.info("Radar sedang memindai, belum ada sinyal kuat yang lolos filter Minervini.")
-    except Exception as e: st.error(f"Koneksi terputus: {e}. Silakan klik Clear Server Cache.")
+        else: st.info("Radar mandiri selesai memindai. Belum ada sinyal juara saat ini.")
+    except Exception as e: st.error("Sistem sedang istirahat. Klik Clear Cache.")
 else: st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass' di Sidebar.")
 
 # --- 🛡️ TOOLS ---
@@ -173,10 +177,10 @@ with ca:
     if st.button("🚀 Run Tactical Audit"):
         if tid:
             with st.spinner("Memproses Audit Mendalam..."):
-                st.write(f"### 🔬 Deep Dive Audit ({tid})")
-                res, p_val, src = run_deep_audit(tid, ihsg_ret, goapi_key)
+                res, p_val, src = run_deep_audit(tid, ihsg_ret, max_p=999999, api_key=goapi_key) # Max P dibebaskan untuk audit
                 
                 if res:
+                    st.write(f"### 🔬 Deep Dive Audit ({tid})")
                     st.write(f"Sumber Data: **{src}**")
                     for k, v in res.items():
                         st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)

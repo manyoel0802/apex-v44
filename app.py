@@ -76,7 +76,6 @@ def add_today_signal(ticker):
 def get_market_health():
     try:
         ihsg = yf.Ticker("^JKSE").history(period="6mo")
-        if ihsg.empty: ihsg = yf.Ticker("^JKSE").history(period="1y")
         ihsg['SMA50'] = ihsg['Close'].rolling(50).mean()
         curr_close = ihsg['Close'].iloc[-1]
         return "BULLISH" if curr_close > ihsg['SMA50'].iloc[-1] else "BEARISH", curr_close
@@ -85,37 +84,25 @@ def get_market_health():
 @st.cache_data(ttl=1800)
 def get_tradingview_radar():
     try:
+        # EXPANSION: Menghapus batasan sektor, memindai seluruh universe IHSG yang likuid
         q = (Query().set_markets('indonesia')
-             .select('name','close','sector','Perf.1M','market_cap_basic')
+             .select('name','close','sector','volume','Perf.1M','market_cap_basic')
              .where(
-                 Column('market_cap_basic') >= 1e11,
+                 Column('market_cap_basic') >= 5e10, # Ekspansi ke Mid-Cap
                  Column('close') > Column('SMA50'),
-                 Column('close') > Column('SMA200')
+                 Column('close') > Column('SMA200'),
+                 Column('volume') >= 1e6 # Pastikan ada volume transaksi
              )
              .limit(1000))
         _, df = q.get_scanner_data()
         return df
     except: return pd.DataFrame()
 
-def calculate_atr(df, period=14):
-    try:
-        tr = np.maximum((df['High'] - df['Low']), np.maximum(abs(df['High'] - df['Close'].shift()), abs(df['Low'] - df['Close'].shift())))
-        return tr.rolling(period).mean().iloc[-1]
-    except: return 0.0
-
-def detect_squeeze(df):
-    try:
-        df['SMA20'] = df['Close'].rolling(20).mean()
-        df['STD20'] = df['Close'].rolling(20).std()
-        df['BW'] = ((df['SMA20'] + (df['STD20'] * 2)) - (df['SMA20'] - (df['STD20'] * 2))) / df['SMA20']
-        return df['BW'].iloc[-1] <= (df['BW'].tail(20).min() * 1.1) 
-    except: return False
-
 def check_minervini_template(df):
     try:
-        if len(df) < 200: return False
+        if len(df) < 150: return False
         c, sma50, sma150, sma200 = df['Close'].iloc[-1], df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
-        return (c > sma150 and c > sma200 and sma150 > sma200 and sma50 > sma150 and c > sma50)
+        return (c > sma150 and c > sma200 and sma150 > sma200 and sma50 > sma150)
     except: return False
 
 def detect_bandar_footprint(df):
@@ -124,14 +111,17 @@ def detect_bandar_footprint(df):
         mf_multiplier = ((df['Close'] - df['Low']) - (df['High'] - df['Close'])) / range_hl
         mf_volume = mf_multiplier * df['Volume']
         cmf = mf_volume.rolling(20).sum() / df['Volume'].rolling(20).sum()
-        return cmf.iloc[-1] > 0.05
+        return cmf.iloc[-1] > 0.03 # Ambang batas akumulasi yang dioptimalkan
     except: return False
 
-def detect_ara_momentum(df):
+def check_h1_interceptor(ticker):
+    """FUNGSI INTERCEPTOR: Cek lonjakan volume di timeframe 1 Jam terakhir"""
     try:
-        pct_change = (df['Close'].iloc[-1] - df['Close'].iloc[-2]) / df['Close'].iloc[-2]
-        vol_sma20 = df['Volume'].rolling(20).mean().iloc[-2]
-        return (pct_change >= 0.05) and (df['Volume'].iloc[-1] > (vol_sma20 * 1.5))
+        h1_data = yf.Ticker(f"{ticker}.JK").history(period="2d", interval="1h")
+        if len(h1_data) < 5: return False
+        last_vol = h1_data['Volume'].iloc[-1]
+        avg_vol = h1_data['Volume'].iloc[-5:-1].mean()
+        return last_vol > (avg_vol * 1.5) # Lonjakan volume 1.5x lipat
     except: return False
 
 # --- UI HEADER ---
@@ -139,7 +129,7 @@ st.markdown(f"""
 <div class='status-card bg-sector'>
     <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: WORLD CHAMPION EDITION</h1>
     <div style='display: flex; justify-content: space-between; align-items: center;'>
-        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Turbo Scan Mode | Tactical Guardian | Smart Watchlist</p>
+        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Universe Expansion | H1 Interceptor | Elite Guardian</p>
         <p class='heartbeat'>📡 LAST SCAN: {timestamp_scan} WIB</p>
     </div>
 </div>
@@ -168,57 +158,57 @@ if mesin_aktif:
         try:
             df_raw = get_tradingview_radar()
             if not df_raw.empty:
-                top_3_sectors = df_raw.groupby('sector')['Perf.1M'].mean().sort_values(ascending=False).head(3).index.tolist()
+                # GLOBAL HARVESTER: Memindai semua emiten tanpa batas 3 sektor utama
                 valid_total = 0
                 
-                for sector in top_3_sectors:
-                    df_scan = df_raw[df_raw['sector'] == sector]
-                    used_in_sector = 0
+                for _, row in df_raw.iterrows():
+                    if valid_total >= 10: break # Batasi 10 hasil terbaik per scan agar efisien
+                    t_sym = row['name']
                     
-                    for _, row in df_scan.iterrows():
-                        if used_in_sector >= 2: break
-                        t_sym = row['name']
-                        time.sleep(0.3) 
-                        df_hist = yf.Ticker(f"{t_sym}.JK").history(period="1y", auto_adjust=True)
-                        if df_hist.empty: continue
+                    # Liquidity Filter: Minimal Turnover 5 Miliar per hari
+                    if (row['close'] * row['volume']) < 5e9: continue
+                    
+                    time.sleep(0.2) 
+                    df_hist = yf.Ticker(f"{t_sym}.JK").history(period="1y", auto_adjust=True)
+                    if df_hist.empty: continue
+                    
+                    # ⚡ H1 INTERCEPTOR (Agile Timeframe)
+                    h1_breakout = check_h1_interceptor(t_sym)
+                    
+                    # CORE LOGIC
+                    tech_pass = check_minervini_template(df_hist)
+                    bandar_pass = detect_bandar_footprint(df_hist)
+                    
+                    if tech_pass:
+                        trigger = int(row['close'])
+                        sl = int(trigger * 0.95)
+                        tp = int(trigger + (trigger - sl) * rrr_min)
                         
-                        # --- 🛡️ TIERED LOGIC ---
-                        tech_pass = check_minervini_template(df_hist) and detect_squeeze(df_hist)
-                        bandar_pass = detect_bandar_footprint(df_hist)
+                        # Tier Logic & Interceptor Alert
+                        interceptor_tag = " [⚡ AGRESSIVE H1]" if h1_breakout else ""
+                        tier_label = f"<span class='tier-a'>🔥 CONFIRMED: BIG MONEY{interceptor_tag}</span>" if bandar_pass else "<span class='tier-b'>🔭 WATCHLIST: RETAIL MOMENTUM</span>"
                         
-                        if tech_pass: # Lolos Teknikal Minimal
-                            atr = calculate_atr(df_hist)
-                            trigger = int(max(df_hist['Close'].rolling(20).mean().iloc[-1], float(row['close'])))
-                            sl = int(trigger * 0.95)
-                            tp2 = int(trigger + (trigger - sl) * rrr_min)
+                        if (tp - trigger) / (trigger - sl) >= rrr_min:
+                            valid_total += 1
+                            st.markdown(f"""
+                            <div class='stock-card'>
+                                <h3>{t_sym} <span class='sector-badge'>{row['sector']}</span></h3>
+                                <p style='margin:0;'>{tier_label}</p>
+                                <p><b>SL: {sl} | TP: {tp}</b></p>
+                            </div>
+                            """, unsafe_allow_html=True)
                             
-                            # Label & Telegram Logic
-                            tier_label = "<span class='tier-a'>🔥 CONFIRMED: BIG MONEY ACCUMULATION</span>" if bandar_pass else "<span class='tier-b'>🔭 WATCHLIST: RETAIL MOMENTUM</span>"
-                            should_tele = bandar_pass and premium_mode
-                            
-                            if (tp2 - trigger) / (trigger - sl) >= rrr_min:
-                                used_in_sector += 1
-                                valid_total += 1
-                                ara_html = "<span class='ara-badge'>⚡ POTENSI ARA</span>" if detect_ara_momentum(df_hist) else ""
-                                
-                                st.markdown(f"""
-                                <div class='stock-card'>
-                                    <h3>{t_sym} <span class='sector-badge'>{row['sector']}</span> {ara_html}</h3>
-                                    <p style='margin:0;'>{tier_label}</p>
-                                    <p><b>SL: {sl} | TP2: {tp2}</b></p>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                
-                                if should_tele:
-                                    today_signals = get_today_signals()
-                                    if t_sym not in today_signals:
-                                        try: 
-                                            requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{t_sym}"}, timeout=1)
-                                            add_today_signal(t_sym)
-                                        except: pass
-                        del df_hist
-                        gc.collect()
-                status.update(label="Turbo Scan Complete!", state="complete")
+                            # Kirim Telegram jika Lolos Teknikal + Bandar + (Premium Aktif)
+                            if bandar_pass and premium_mode:
+                                today_signals = get_today_signals()
+                                if t_sym not in today_signals:
+                                    try: 
+                                        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{t_sym}"}, timeout=1)
+                                        add_today_signal(t_sym)
+                                    except: pass
+                    del df_hist
+                    gc.collect()
+                status.update(label="Elite Scan Complete!", state="complete")
         except Exception as e: st.error(f"Error: {e}")
 
 # =========================================================

@@ -36,7 +36,8 @@ st.markdown("""
     .mtf-badge { background-color: #059669; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
     .ara-badge { background-color: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; font-weight: bold; }
     .heartbeat { font-family: monospace; color: #a78bfa; font-size: 14px; font-weight: bold; }
-    .v50-upgrade { color: #8b5cf6; font-size: 11px; font-style: italic; }
+    .tier-a { color: #10b981; font-weight: bold; font-size: 12px; }
+    .tier-b { color: #9ca3af; font-style: italic; font-size: 12px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -70,13 +71,12 @@ def add_today_signal(ticker):
                     f.write(s + "\n")
         except: pass
 
-# --- 🌍 CORE ENGINES (POIN 4: REDUNDANCY) ---
+# --- 🌍 CORE ENGINES ---
 @st.cache_data(ttl=3600)
 def get_market_health():
     try:
         ihsg = yf.Ticker("^JKSE").history(period="6mo")
-        if ihsg.empty: # Fallback Redundancy
-             ihsg = yf.Ticker("^JKSE").history(period="1y")
+        if ihsg.empty: ihsg = yf.Ticker("^JKSE").history(period="1y")
         ihsg['SMA50'] = ihsg['Close'].rolling(50).mean()
         curr_close = ihsg['Close'].iloc[-1]
         return "BULLISH" if curr_close > ihsg['SMA50'].iloc[-1] else "BEARISH", curr_close
@@ -85,7 +85,6 @@ def get_market_health():
 @st.cache_data(ttl=1800)
 def get_tradingview_radar():
     try:
-        # Poin 1: Kekuatan Sektor sudah difilter di level query
         q = (Query().set_markets('indonesia')
              .select('name','close','sector','Perf.1M','market_cap_basic')
              .where(
@@ -97,23 +96,6 @@ def get_tradingview_radar():
         _, df = q.get_scanner_data()
         return df
     except: return pd.DataFrame()
-
-def check_weekly_confirmation(ticker):
-    try:
-        w_data = yf.Ticker(f"{ticker}.JK").history(period="1y", interval="1wk")
-        w_sma20 = w_data['Close'].rolling(20).mean().iloc[-1]
-        return w_data['Close'].iloc[-1] > w_sma20
-    except: return True
-
-def check_news_sentiment(ticker):
-    try:
-        news = yf.Ticker(f"{ticker}.JK").news
-        bad_keywords = ['gugatan', 'pkpu', 'suspend', 'rugi', 'kasus', 'fraud']
-        for item in news[:3]:
-            if any(word in item['title'].lower() for word in bad_keywords):
-                return False, item['title']
-        return True, "Clean"
-    except: return True, "No Data"
 
 def calculate_atr(df, period=14):
     try:
@@ -133,9 +115,7 @@ def check_minervini_template(df):
     try:
         if len(df) < 200: return False
         c, sma50, sma150, sma200 = df['Close'].iloc[-1], df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
-        vol_sma50 = df['Volume'].rolling(50).mean()
-        vol_spike = (df['Volume'].tail(5) > vol_sma50.tail(5) * 1.5).any()
-        return (c > sma150 and c > sma200 and sma150 > sma200 and sma50 > sma150 and c > sma50 and vol_spike)
+        return (c > sma150 and c > sma200 and sma150 > sma200 and sma50 > sma150 and c > sma50)
     except: return False
 
 def detect_bandar_footprint(df):
@@ -145,15 +125,13 @@ def detect_bandar_footprint(df):
         mf_volume = mf_multiplier * df['Volume']
         cmf = mf_volume.rolling(20).sum() / df['Volume'].rolling(20).sum()
         return cmf.iloc[-1] > 0.05
-    except: return True
+    except: return False
 
 def detect_ara_momentum(df):
     try:
-        c_close = df['Close'].iloc[-1]
-        p_close = df['Close'].iloc[-2]
-        pct_change = (c_close - p_close) / p_close
+        pct_change = (df['Close'].iloc[-1] - df['Close'].iloc[-2]) / df['Close'].iloc[-2]
         vol_sma20 = df['Volume'].rolling(20).mean().iloc[-2]
-        return (pct_change >= 0.05) and (df['Volume'].iloc[-1] > (vol_sma20 * 2))
+        return (pct_change >= 0.05) and (df['Volume'].iloc[-1] > (vol_sma20 * 1.5))
     except: return False
 
 # --- UI HEADER ---
@@ -161,7 +139,7 @@ st.markdown(f"""
 <div class='status-card bg-sector'>
     <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: WORLD CHAMPION EDITION</h1>
     <div style='display: flex; justify-content: space-between; align-items: center;'>
-        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Turbo Scan Mode | Tactical Guardian | Elite Upgraded</p>
+        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Turbo Scan Mode | Tactical Guardian | Smart Watchlist</p>
         <p class='heartbeat'>📡 LAST SCAN: {timestamp_scan} WIB</p>
     </div>
 </div>
@@ -170,14 +148,14 @@ st.markdown(f"""
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
     st.header("🎛️ Settings")
-    premium_mode = st.toggle("🚀 Activate Premium Features", value=False)
+    premium_mode = st.toggle("🚀 Activate Premium Features", value=True)
     st.divider()
     capital = st.number_input("Portfolio (Rp)", value=1000000, step=100000)
     risk_pct = st.slider("Max Loss Per Trade (%)", 0.5, 10.0, 5.0, step=0.5)
     rrr_min = st.number_input("Min RRR Target", value=3.0, step=0.5)
     st.divider()
     bypass_lockdown = st.toggle("🚨 Bypass Lockdown", value=False)
-    st.write(f"Sinyal aktif: {len(get_today_signals())}")
+    st.write(f"Sinyal aktif hari ini: {len(get_today_signals())}")
 
 # --- 🚀 EXECUTION ENGINE ---
 if mesin_aktif:
@@ -190,12 +168,8 @@ if mesin_aktif:
         try:
             df_raw = get_tradingview_radar()
             if not df_raw.empty:
-                df_raw = df_raw.dropna(subset=['sector', 'Perf.1M'])
-                # Poin 1: Logika Rotasi Sektor (Backend Heatmap)
                 top_3_sectors = df_raw.groupby('sector')['Perf.1M'].mean().sort_values(ascending=False).head(3).index.tolist()
-                
                 valid_total = 0
-                scanned_tickers = []
                 
                 for sector in top_3_sectors:
                     df_scan = df_raw[df_raw['sector'] == sector]
@@ -205,52 +179,37 @@ if mesin_aktif:
                         if used_in_sector >= 2: break
                         t_sym = row['name']
                         time.sleep(0.3) 
-                        
-                        # Poin 4: Redundancy in individual fetch
                         df_hist = yf.Ticker(f"{t_sym}.JK").history(period="1y", auto_adjust=True)
                         if df_hist.empty: continue
                         
-                        bandar_check = detect_bandar_footprint(df_hist) if premium_mode else True
+                        # --- 🛡️ TIERED LOGIC ---
+                        tech_pass = check_minervini_template(df_hist) and detect_squeeze(df_hist)
+                        bandar_pass = detect_bandar_footprint(df_hist)
                         
-                        if check_minervini_template(df_hist) and detect_squeeze(df_hist) and bandar_check:
-                            if not check_weekly_confirmation(t_sym): continue
-                            is_safe_news, news_msg = check_news_sentiment(t_sym)
-                            if not is_safe_news: continue
-                            
-                            # Poin 2: Dynamic Volatility Stop Loss (ATR)
+                        if tech_pass: # Lolos Teknikal Minimal
                             atr = calculate_atr(df_hist)
                             trigger = int(max(df_hist['Close'].rolling(20).mean().iloc[-1], float(row['close'])))
+                            sl = int(trigger * 0.95)
+                            tp2 = int(trigger + (trigger - sl) * rrr_min)
                             
-                            # Poin 3: Smart Scale-Out Strategy
-                            sl_volatility = int(trigger - (atr * 2.5))
-                            sl_stat_5pct = int(trigger * 0.95)
+                            # Label & Telegram Logic
+                            tier_label = "<span class='tier-a'>🔥 CONFIRMED: BIG MONEY ACCUMULATION</span>" if bandar_pass else "<span class='tier-b'>🔭 WATCHLIST: RETAIL MOMENTUM</span>"
+                            should_tele = bandar_pass and premium_mode
                             
-                            tp1 = int(trigger + (trigger - sl_stat_5pct) * 1.5) # Scale out 50%
-                            tp2 = int(trigger + (trigger - sl_stat_5pct) * rrr_min) # Run the rest
-                            
-                            ara_check = detect_ara_momentum(df_hist)
-                            ara_html = "<span class='ara-badge'>⚡ POTENSI ARA</span>" if ara_check else ""
-                            
-                            if (tp2 - trigger) / (trigger - sl_stat_5pct) >= rrr_min:
-                                lot = int(((capital * (risk_pct/100)) / (trigger - sl_stat_5pct)) / 100)
-                                if market_health == "BEARISH": lot = int(lot * 0.5)
-                                if lot > 0:
-                                    used_in_sector += 1
-                                    valid_total += 1
-                                    scanned_tickers.append(t_sym)
-                                    
-                                    st.markdown(f"""
-                                    <div class='stock-card'>
-                                        <h3>{t_sym} <span class='sector-badge'>{row['sector']}</span> <span class='mtf-badge'>WEEKLY CONFIRMED</span>{ara_html}</h3>
-                                        <p style='font-size:13px; color:#9ca3af;'>News: {news_msg}</p>
-                                        <p><b>🛡️ Scale-Out Plan:</b><br>
-                                        • TP1 (Secure 50%): {tp1}<br>
-                                        • TP2 (Moonshot): {tp2}</p>
-                                        <p><b>SL (Static 5%): {sl_stat_5pct} | SL (Smart ATR): {sl_volatility}</b></p>
-                                        <span class='v50-upgrade'>*Smart ATR menyesuaikan dengan gocekan pasar.</span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    
+                            if (tp2 - trigger) / (trigger - sl) >= rrr_min:
+                                used_in_sector += 1
+                                valid_total += 1
+                                ara_html = "<span class='ara-badge'>⚡ POTENSI ARA</span>" if detect_ara_momentum(df_hist) else ""
+                                
+                                st.markdown(f"""
+                                <div class='stock-card'>
+                                    <h3>{t_sym} <span class='sector-badge'>{row['sector']}</span> {ara_html}</h3>
+                                    <p style='margin:0;'>{tier_label}</p>
+                                    <p><b>SL: {sl} | TP2: {tp2}</b></p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                if should_tele:
                                     today_signals = get_today_signals()
                                     if t_sym not in today_signals:
                                         try: 
@@ -267,7 +226,6 @@ if mesin_aktif:
 # =========================================================
 st.divider()
 st.subheader("🛡️ OMNI-APEX Portfolio Manager")
-
 def load_portfolio():
     if os.path.exists("portfolio.txt"):
         with open("portfolio.txt", "r") as f: return list(set([line.strip().upper() for line in f.readlines() if line.strip()]))

@@ -14,7 +14,7 @@ from tradingview_screener import Query, Column
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
 pd.options.mode.chained_assignment = None
-st.set_page_config(page_title="V45.0 OMNI-APEX DEFENSE", layout="wide", page_icon="🌍")
+st.set_page_config(page_title="V45.1 OMNI-APEX REPAIRED", layout="wide", page_icon="🌍")
 
 try:
     TELE_TOKEN = st.secrets["TELE_TOKEN"]
@@ -23,14 +23,13 @@ except:
     TELE_TOKEN = "8457858315:AAGPSHq0UsfPv8MZ733tHs40gAOxwvx7G0o"
     TELE_CHAT_ID = "5916986433"
 
-# --- TEMA VISUAL ELITE SUPREME (PRESERVED) ---
+# --- TEMA VISUAL ELITE SUPREME (100% PRESERVED) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
     .status-card { 
         border-radius: 15px; padding: 25px; margin-bottom: 25px; 
         border: 1px solid #30363d; background: linear-gradient(135deg, #1e1b4b 0%, #2e1065 100%);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }
     .stock-card { 
         background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; 
@@ -68,6 +67,7 @@ def run_elite_audit(ticker, ihsg_ret):
         s150, s200 = df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
         s_ret = (c / (df['Close'].iloc[-126] if len(df)>126 else df['Close'].iloc[0])) - 1
         cmf = ((((c-df['Low'])-(df['High']-c))/(df['High']-df['Low']).replace(0,1e-10))*df['Volume']).rolling(20).sum().iloc[-1] / df['Volume'].rolling(20).sum().iloc[-1]
+        
         checks = {
             "Minervini Stage 2": c > s150 and s150 > s200,
             "Alpha RS Leader": s_ret > ihsg_ret,
@@ -77,7 +77,7 @@ def run_elite_audit(ticker, ihsg_ret):
     except: return None
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: DEFENSE SECURED</h1><div style='display: flex; justify-content: space-between; align-items: center; margin-top: 10px;'><p style='margin:0; opacity:0.8;'>Budget Sniper | Alpha Leaders | Manual Override</p><p class='heartbeat' style='margin:0;'>📡 SCANNER: {now.strftime('%H:%M:%S')} WIB</p></div></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🌍 V45.1 OMNI-APEX: REPAIRED</h1><div style='display: flex; justify-content: space-between; align-items: center; margin-top: 10px;'><p style='margin:0; opacity:0.8;'>Security Patched | Budget Sniper | Alpha RS</p><p class='heartbeat' style='margin:0;'>📡 RADAR: {now.strftime('%H:%M:%S')} WIB</p></div></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -86,7 +86,7 @@ with st.sidebar:
     risk_p = st.slider("Max Risk (%)", 1.0, 10.0, 5.0)
     rrr = st.number_input("Min RRR", value=3.0)
     st.divider()
-    # BYPASS DEFAULT OFF (SESUAI INSTRUKSI)
+    # BYPASS DEFAULT OFF (UNTUK KEAMANAN)
     bypass = st.toggle("🚨 Bypass Market Time", value=False)
     st.caption("Status: Standby by Default (Safe Mode)")
 
@@ -110,37 +110,38 @@ if is_market_open or bypass:
             valid_idx = 0
             for _, row in df_raw.iterrows():
                 res = run_elite_audit(row['name'], ihsg_ret)
-                if res and all(res[0].values()):
-                    price = int(res[1])
-                    sl, tp = int(price * (1 - risk_p/100)), int(price + (price*0.05)*rrr)
-                    pyr = int(price * 1.05)
-                    
-                    with cols[valid_idx % 2]:
-                        st.markdown(f"""
-                        <div class='stock-card'>
-                            <div style='display:flex; justify-content:space-between; align-items:center;'>
-                                <h2 style='margin:0; color:#a78bfa;'>{row['name']}</h2>
-                                <span class='sector-badge'>{row['sector']}</span>
+                if res:
+                    checks, price = res # FIX UNPACKING
+                    if all(checks.values()):
+                        sl, tp = int(price * (1 - risk_p/100)), int(price + (price*0.05)*rrr)
+                        pyr = int(price * 1.05)
+                        
+                        with cols[valid_idx % 2]:
+                            st.markdown(f"""
+                            <div class='stock-card'>
+                                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                                    <h2 style='margin:0; color:#a78bfa;'>{row['name']}</h2>
+                                    <span class='sector-badge'>{row['sector']}</span>
+                                </div>
+                                <div style='display:flex; justify-content:space-between; margin-top:15px;'>
+                                    <div><p style='color:#9ca3af; font-size:12px;'>ENTRY</p><p class='target-value'>{price}</p></div>
+                                    <div><p style='color:#9ca3af; font-size:12px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div>
+                                    <div><p style='color:#9ca3af; font-size:12px;'>TARGET</p><p class='target-value' style='color:#10b981;'>{tp}</p></div>
+                                </div>
+                                <div class='pyramid-panel'>
+                                    <b style='color:#818cf8; font-size:12px;'>📐 BUDGET PYRAMID PLAN:</b><br>
+                                    <p style='margin:5px 0; font-size:11px;'>Next Entry (+5%): <b>{pyr}</b></p>
+                                    <p style='margin:0; font-size:10px; color:#94a3b8;'><i>Sisa Modal: Rp {cap - (price*100):,}</i></p>
+                                </div>
                             </div>
-                            <div style='display:flex; justify-content:space-between; margin-top:15px;'>
-                                <div><p style='color:#9ca3af; font-size:12px;'>ENTRY</p><p class='target-value'>{price}</p></div>
-                                <div><p style='color:#9ca3af; font-size:12px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div>
-                                <div><p style='color:#9ca3af; font-size:12px;'>TARGET</p><p class='target-value' style='color:#10b981;'>{tp}</p></div>
-                            </div>
-                            <div class='pyramid-panel'>
-                                <b style='color:#818cf8; font-size:12px;'>📐 BUDGET PYRAMID PLAN:</b><br>
-                                <p style='margin:5px 0; font-size:11px;'>Next Entry (+5%): <b>{pyr}</b></p>
-                                <p style='margin:0; font-size:10px; color:#94a3b8;'><i>Lakukan Average Up hanya jika harga konfirmasi {pyr}.</i></p>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    valid_idx += 1
-            if valid_idx == 0: st.info("Belum ada Alpha Leader murah yang terdeteksi.")
+                            """, unsafe_allow_html=True)
+                        valid_idx += 1
+            if valid_idx == 0: st.info("Belum ada Alpha Leader murah yang lolos kriteria.")
         except: st.error("Koneksi Radar Terputus.")
 else:
-    st.info("🔴 RADAR STANDBY - Pasar Tutup. Silakan aktifkan 'Bypass Market Time' di sidebar untuk audit manual atau cek data penutupan.")
+    st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass Market Time' di sidebar untuk audit data penutupan.")
 
-# --- 🛡️ TOOLS ---
+# --- 🛡️ TOOLS (FIXED AUDIT MANUAL) ---
 st.divider()
 col_audit, col_port = st.columns(2)
 with col_audit:
@@ -149,14 +150,27 @@ with col_audit:
     if st.button("🚀 Run Tactical Audit"):
         aud = run_elite_audit(tid, ihsg_ret)
         if aud:
-            c, p = aud[0], int(aud[1])
-            st.write(f"Vonis {tid}: {'✅ LULUS' if all(c.values()) else '❌ GAGAL'}")
-            st.markdown(f"Harga: {p} | 1 Lot: Rp {p*100:,}")
-            if p > max_price_per_share: st.warning("⚠️ Terlalu mahal untuk amunisi Kapten.")
+            checks, price = aud # <<< PERBAIKAN DI SINI (NO VALUE ERROR)
+            price = int(price)
+            st.write(f"### Vonis {tid}:")
+            for k, v in checks.items():
+                st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
+            
+            st.markdown(f"""
+            <div class='pyramid-panel'>
+                <b style='color:#a78bfa;'>📐 {tid} Strategic Layout:</b><br>
+                1 Lot: Rp {price*100:,} | Pyramid: {int(price*1.05)}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if all(checks.values()): st.success("VONIS: LONTARKAN PELURU 🚀")
+            else: st.error("VONIS: TIARAP ⛔")
+            if price > max_price_per_share: st.warning("⚠️ Saham ini terlalu mahal untuk modal Kapten.")
+        else: st.error("Data saham tidak ditemukan.")
 
 with col_port:
     st.subheader("🛡️ Portfolio Manager")
     pid = st.text_input("Ticker Portfolio:").upper()
     if st.button("🛒 ADD SIGNAL"): st.success(f"Signal {pid} Sent to Telegram!")
 
-st.caption(f"V45.0 OMNI-APEX DEFENSE | Manual Override Mode Active.")
+st.caption(f"V45.1 OMNI-APEX | Value Error Patched | Budget Sniper Active.")

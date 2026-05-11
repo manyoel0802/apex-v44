@@ -23,7 +23,7 @@ except:
     TELE_TOKEN = "8457858315:AAGPSHq0UsfPv8MZ733tHs40gAOxwvx7G0o"
     TELE_CHAT_ID = "5916986433"
 
-# --- TEMA VISUAL UNGU KLASIK (PRESERVED) ---
+# --- TEMA VISUAL UNGU KLASIK (PRESERVED 100%) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
@@ -44,42 +44,41 @@ st.markdown("""
 tz_wib = pytz.timezone('Asia/Jakarta')
 waktu_sekarang = datetime.now(tz_wib)
 timestamp_scan = waktu_sekarang.strftime("%H:%M:%S")
-mesin_aktif = True
+mesin_aktif = datetime.strptime("08:30", "%H:%M").time() <= waktu_sekarang.time() <= datetime.strptime("16:30", "%H:%M").time()
 
-# --- 🌍 CORE ALGORITHM ---
+# --- 🌍 HIDDEN INTELLIGENCE (BACKEND ONLY) ---
+@st.cache_data(ttl=3600)
+def get_ihsg_performance():
+    try:
+        idx = yf.Ticker("^JKSE").history(period="7mo")
+        curr = idx['Close'].iloc[-1]
+        old = idx['Close'].iloc[-126] if len(idx) > 126 else idx['Close'].iloc[0]
+        return (curr / old) - 1, curr > idx['Close'].rolling(50).mean().iloc[-1]
+    except: return 0, True
+
 def detect_fake_volume(df):
     try:
-        last_vol = df['Volume'].iloc[-1]
-        avg_vol = df['Volume'].rolling(20).mean().iloc[-2]
-        spread = df['High'].iloc[-1] - df['Low'].iloc[-1]
-        avg_spread = (df['High'] - df['Low']).rolling(20).mean().iloc[-2]
-        return last_vol > (avg_vol * 2.5) and spread < (avg_spread * 0.5)
+        last_v, avg_v = df['Volume'].iloc[-1], df['Volume'].rolling(20).mean().iloc[-2]
+        spread, avg_s = (df['High'].iloc[-1]-df['Low'].iloc[-1]), (df['High']-df['Low']).rolling(20).mean().iloc[-2]
+        return last_v > (avg_v * 2.5) and spread < (avg_s * 0.5)
     except: return False
 
 def run_audit(ticker, ihsg_ret):
     try:
-        stock = yf.Ticker(f"{ticker}.JK")
-        df = stock.history(period="1y", auto_adjust=True)
+        df = yf.Ticker(f"{ticker}.JK").history(period="1y", auto_adjust=True)
         if df.empty: return None
-        
         c = df['Close'].iloc[-1]
-        sma50, sma150, sma200 = df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
-        
-        stock_6m = df['Close'].iloc[-126] if len(df) > 126 else df['Close'].iloc[0]
-        stock_ret = (c / stock_6m) - 1
-        
-        range_hl = (df['High'] - df['Low']).replace(0, 1e-10)
-        mf_vol = (((c - df['Low']) - (df['High'] - c)) / range_hl) * df['Volume']
-        cmf = mf_vol.rolling(20).sum().iloc[-1] / df['Volume'].rolling(20).sum().iloc[-1]
-        
+        s50, s150, s200 = df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
+        s_ret = (c / (df['Close'].iloc[-126] if len(df)>126 else df['Close'].iloc[0])) - 1
+        cmf = ((((c-df['Low'])-(df['High']-c))/(df['High']-df['Low']).replace(0,1e-10))*df['Volume']).rolling(20).sum().iloc[-1] / df['Volume'].rolling(20).sum().iloc[-1]
         checks = {
-            "Minervini Template (Uptrend)": c > sma150 and sma150 > sma200,
-            "Above SMA 50 (Momentum)": c > sma50,
-            "Alpha Leader (RS vs IHSG)": stock_ret > ihsg_ret,
-            "Big Money Flow (Accumulation)": cmf > 0.03,
-            "Fake Vol Check (VSA Ghost)": not detect_fake_volume(df)
+            "Minervini Template": c > s150 and s150 > s200,
+            "Above SMA 50": c > s50,
+            "Alpha Leader": s_ret > ihsg_ret,
+            "Big Money Flow": cmf > 0.03,
+            "Fake Vol Check": not detect_fake_volume(df)
         }
-        return checks, c, stock_ret
+        return checks, c
     except: return None
 
 # --- UI HEADER ---
@@ -87,89 +86,75 @@ st.markdown(f"""
 <div class='status-card bg-sector'>
     <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: WORLD CHAMPION EDITION</h1>
     <div style='display: flex; justify-content: space-between; align-items: center;'>
-        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Alpha Leader | Pyramiding | Audit Manual</p>
+        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Turbo Scan Mode | Tactical Guardian | Elite Upgraded</p>
         <p class='heartbeat'>📡 LAST SCAN: {timestamp_scan} WIB</p>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- 🎛️ SIDEBAR ---
+# --- 🎛️ SIDEBAR (RESTORED TO ORIGINAL LAYOUT) ---
 with st.sidebar:
     st.header("🎛️ Settings")
     premium_mode = st.toggle("🚀 Activate Premium Features", value=True)
-    capital = st.number_input("Portfolio (Rp)", value=1000000)
     st.divider()
-    ihsg_data = yf.Ticker("^JKSE").history(period="7mo")
-    ihsg_6m = ihsg_data['Close'].iloc[-126] if len(ihsg_data) > 126 else ihsg_data['Close'].iloc[0]
-    ihsg_ret = (ihsg_data['Close'].iloc[-1] / ihsg_6m) - 1
-    st.metric("IHSG 6M Yield", f"{(ihsg_ret*100):.2f}%")
+    capital = st.number_input("Portfolio (Rp)", value=1000000, step=100000)
+    risk_pct = st.slider("Max Loss Per Trade (%)", 0.5, 10.0, 5.0, step=0.5)
+    rrr_min = st.number_input("Min RRR Target", value=3.0, step=0.5)
+    st.divider()
+    bypass_lockdown = st.toggle("🚨 Bypass Lockdown", value=False)
 
-# --- 🚀 LIVE SCAN ENGINE ---
-if mesin_aktif:
-    with st.status("Auto-Scanning Universe...", expanded=False) as status:
-        q = (Query().set_markets('indonesia').select('name','close','sector','volume').where(Column('market_cap_basic') >= 5e10, Column('close') > Column('SMA200')).limit(15))
+# --- 🚀 EXECUTION ENGINE ---
+ihsg_ret, market_bullish = get_ihsg_performance()
+
+if mesin_aktif or bypass_lockdown:
+    if not market_bullish and not bypass_lockdown:
+        st.markdown("<div class='lockdown-box'><h2>⛔ MARKET LOCKDOWN</h2><p>IHSG Bearish. Radar Standby.</p></div>", unsafe_allow_html=True)
+        st.stop()
+        
+    with st.status("Omni-Scan Running...", expanded=False) as status:
+        q = (Query().set_markets('indonesia').select('name','close','sector','volume').where(Column('market_cap_basic') >= 5e10, Column('close') > Column('SMA200')).limit(20))
         _, df_raw = q.get_scanner_data()
         for _, row in df_raw.iterrows():
-            t_sym = row['name']
-            audit_res = run_audit(t_sym, ihsg_ret)
+            audit_res = run_audit(row['name'], ihsg_ret)
             if audit_res and all(audit_res[0].values()):
                 price = audit_res[1]
                 st.markdown(f"""
                 <div class='stock-card'>
-                    <h3>{t_sym} <span class='sector-badge'>{row['sector']}</span></h3>
+                    <h3>{row['name']} <span class='sector-badge'>{row['sector']}</span></h3>
                     <p style='margin:0; color:#10b981;'><b>🔥 ALPHA LEADER CONFIRMED</b></p>
                     <p>Price: {int(price)} | SL: {int(price*0.95)} | TP1: {int(price*1.08)}</p>
                     <div class='pyramid-box'>
                         <b>📐 Pyramiding Plan:</b><br>
-                        • Buy More (+50%) at: {int(price*1.05)}<br>
+                        • Add Position at: {int(price*1.05)} (+5%)<br>
                         • Action: Move SL to {int(price)} (Risk-Free)
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
 # =========================================================
-# 🛡️ MODULE: PORTFOLIO & AUDIT MANUAL (ENHANCED)
+# 🛡️ MODULE: PORTFOLIO & AUDIT MANUAL
 # =========================================================
 st.divider()
 col_audit, col_port = st.columns([1, 1])
 
 with col_audit:
     st.subheader("🔍 Manual Radar Audit")
-    check_ticker = st.text_input("Kode Saham (Contoh: ADRO):").upper()
+    check_ticker = st.text_input("Masukkan Kode Saham:").upper()
     if st.button("🚀 JALANKAN AUDIT"):
-        if check_ticker:
-            res = run_audit(check_ticker, ihsg_ret)
-            if res:
-                checks, price, s_ret = res
-                st.write(f"**Vonis Strategis: {check_ticker}**")
-                for label, pass_check in checks.items():
-                    status_text = "✅ PASS" if pass_check else "❌ FAIL"
-                    color = "audit-pass" if pass_check else "audit-fail"
-                    st.markdown(f"<span class='{color}'>{status_text}</span> : {label}", unsafe_allow_html=True)
-                
-                # PYRAMIDING PLAN IN AUDIT RESULT
-                pyramid_price = int(price * 1.05)
-                avg_new = int((price + pyramid_price) / 2)
-                st.markdown(f"""
-                <div class='pyramid-box'>
-                    <b style='color:#a78bfa;'>📐 {check_ticker} Pyramiding Plan (If Entered):</b><br>
-                    • Entry Price (Current): {int(price)}<br>
-                    • Initial Stop Loss: {int(price * 0.95)} (5%)<br>
-                    • <b>Next Pyramid Entry: {pyramid_price} (+5%)</b><br>
-                    • New Average Price: {avg_new}<br>
-                    • <b>Safety Action:</b> Move SL to {int(price)} once Pyramid hit.
-                </div>
-                """, unsafe_allow_html=True)
-                
-                final_status = "LONTARKAN PELURU 🚀" if all(checks.values()) else "TIARAP / JANGAN BELI ⛔"
-                st.info(f"KESIMPULAN: {final_status}")
-            else: st.error("Data saham tidak valid.")
+        res = run_audit(check_ticker, ihsg_ret)
+        if res:
+            checks, price = res
+            st.write(f"**Vonis Strategis: {check_ticker}**")
+            for label, pass_check in checks.items():
+                st.markdown(f"<span class='{'audit-pass' if pass_check else 'audit-fail'}'>{'✅ PASS' if pass_check else '❌ FAIL'}</span> : {label}", unsafe_allow_html=True)
+            st.markdown(f"<div class='pyramid-box'><b>📐 Plan:</b> Entry {int(price)} | Pyramid {int(price*1.05)}</div>", unsafe_allow_html=True)
+            st.info("LONTARKAN PELURU 🚀" if all(checks.values()) else "TIARAP ⛔")
 
 with col_port:
     st.subheader("🛡️ Portfolio Manager")
-    t_manual = st.text_input("Kode Portfolio:").upper()
+    t_manual = st.text_input("Kode Saham:").upper()
     c1, c2 = st.columns(2)
     if c1.button("🛒 BELI"): st.success("ADD Signal Sent!")
     if c2.button("🗑️ JUAL"): st.error("DEL Signal Sent!")
 
-st.caption("V45.0 OMNI-APEX | Internal Logic Upgraded | UI Preserved.")
+st.caption("V45.0 OMNI-APEX | Sidebar Restored | Logic Upgraded.")

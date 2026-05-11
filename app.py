@@ -23,18 +23,17 @@ except:
     TELE_TOKEN = "8457858315:AAGPSHq0UsfPv8MZ733tHs40gAOxwvx7G0o"
     TELE_CHAT_ID = "5916986433"
 
-# --- TEMA VISUAL UNGU KLASIK (PRESERVED 100%) ---
+# --- TEMA VISUAL UNGU KLASIK (100% PRESERVED) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
     .stMetric { background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 15px; }
     .status-card { border-radius: 15px; padding: 25px; margin-bottom: 25px; border: 1px solid #30363d; color: white; }
     .bg-sector { background: linear-gradient(135deg, #2e1065 0%, #4c1d95 50%, #3b0764 100%); border-top: 5px solid #8b5cf6; box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3); }
-    .stock-card { background-color: #1c2128; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-top: 15px; border-left: 5px solid #8b5cf6; }
-    .sector-badge { background-color: #8b5cf6; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-    .lockdown-box { background-color: #450a0a; border: 1px solid #dc2626; padding: 15px; border-radius: 8px; color: #fca5a5; margin-bottom:20px; }
-    .heartbeat { font-family: monospace; color: #a78bfa; font-size: 14px; font-weight: bold; }
-    .pyramid-box { background-color: #1e1b4b; border: 1px dashed #6366f1; padding: 12px; border-radius: 8px; margin-top: 15px; font-size: 12px; color: #e0e7ff; }
+    .stock-card-sidebar { background-color: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 3px solid #8b5cf6; }
+    .sector-badge { background-color: #8b5cf6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+    .heartbeat { font-family: monospace; color: #a78bfa; font-size: 12px; font-weight: bold; }
+    .pyramid-box-small { background-color: #1e1b4b; border: 1px dashed #6366f1; padding: 8px; border-radius: 6px; margin-top: 8px; font-size: 11px; color: #e0e7ff; }
     .audit-pass { color: #10b981; font-weight: bold; }
     .audit-fail { color: #ef4444; font-weight: bold; }
     </style>
@@ -46,7 +45,7 @@ waktu_sekarang = datetime.now(tz_wib)
 timestamp_scan = waktu_sekarang.strftime("%H:%M:%S")
 mesin_aktif = datetime.strptime("08:30", "%H:%M").time() <= waktu_sekarang.time() <= datetime.strptime("16:30", "%H:%M").time()
 
-# --- 🌍 HIDDEN INTELLIGENCE (BACKEND ONLY) ---
+# --- 🌍 HIDDEN INTELLIGENCE ---
 @st.cache_data(ttl=3600)
 def get_ihsg_performance():
     try:
@@ -81,65 +80,65 @@ def run_audit(ticker, ihsg_ret):
         return checks, c
     except: return None
 
-# --- UI HEADER ---
+# --- UI HEADER (MAIN) ---
 st.markdown(f"""
 <div class='status-card bg-sector'>
     <h1 style='margin:0; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: WORLD CHAMPION EDITION</h1>
     <div style='display: flex; justify-content: space-between; align-items: center;'>
-        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Turbo Scan Mode | Tactical Guardian | Elite Upgraded</p>
+        <p style='margin:5px 0 0 0; opacity:0.9; color:#a78bfa;'>Sidebar Signal Integration | Alpha Leader | Tactical UI</p>
         <p class='heartbeat'>📡 LAST SCAN: {timestamp_scan} WIB</p>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- 🎛️ SIDEBAR (RESTORED TO ORIGINAL LAYOUT) ---
+# --- 🎛️ SIDEBAR (INTEGRATED RADAR) ---
 with st.sidebar:
-    st.header("🎛️ Settings")
+    st.header("🎛️ Command Settings")
     premium_mode = st.toggle("🚀 Activate Premium Features", value=True)
-    st.divider()
     capital = st.number_input("Portfolio (Rp)", value=1000000, step=100000)
-    risk_pct = st.slider("Max Loss Per Trade (%)", 0.5, 10.0, 5.0, step=0.5)
-    rrr_min = st.number_input("Min RRR Target", value=3.0, step=0.5)
-    st.divider()
+    risk_pct = st.slider("Max Loss (%)", 0.5, 10.0, 5.0)
     bypass_lockdown = st.toggle("🚨 Bypass Lockdown", value=False)
-
-# --- 🚀 EXECUTION ENGINE ---
-ihsg_ret, market_bullish = get_ihsg_performance()
-
-if mesin_aktif or bypass_lockdown:
-    if not market_bullish and not bypass_lockdown:
-        st.markdown("<div class='lockdown-box'><h2>⛔ MARKET LOCKDOWN</h2><p>IHSG Bearish. Radar Standby.</p></div>", unsafe_allow_html=True)
-        st.stop()
-        
-    with st.status("Omni-Scan Running...", expanded=False) as status:
-        q = (Query().set_markets('indonesia').select('name','close','sector','volume').where(Column('market_cap_basic') >= 5e10, Column('close') > Column('SMA200')).limit(20))
-        _, df_raw = q.get_scanner_data()
-        for _, row in df_raw.iterrows():
-            audit_res = run_audit(row['name'], ihsg_ret)
-            if audit_res and all(audit_res[0].values()):
-                price = audit_res[1]
-                st.markdown(f"""
-                <div class='stock-card'>
-                    <h3>{row['name']} <span class='sector-badge'>{row['sector']}</span></h3>
-                    <p style='margin:0; color:#10b981;'><b>🔥 ALPHA LEADER CONFIRMED</b></p>
-                    <p>Price: {int(price)} | SL: {int(price*0.95)} | TP1: {int(price*1.08)}</p>
-                    <div class='pyramid-box'>
-                        <b>📐 Pyramiding Plan:</b><br>
-                        • Add Position at: {int(price*1.05)} (+5%)<br>
-                        • Action: Move SL to {int(price)} (Risk-Free)
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+    
+    st.divider()
+    st.header("📡 Live Signals")
+    ihsg_ret, market_bullish = get_ihsg_performance()
+    
+    if mesin_aktif or bypass_lockdown:
+        if not market_bullish and not bypass_lockdown:
+            st.error("⛔ MARKET LOCKDOWN: IHSG Bearish")
+        else:
+            # Live Scan Logic inside Sidebar
+            try:
+                q = (Query().set_markets('indonesia').select('name','close','sector','volume').where(Column('market_cap_basic') >= 5e10, Column('close') > Column('SMA200')).limit(10))
+                _, df_raw = q.get_scanner_data()
+                
+                for _, row in df_raw.iterrows():
+                    res = run_audit(row['name'], ihsg_ret)
+                    if res and all(res[0].values()):
+                        price = res[1]
+                        st.markdown(f"""
+                        <div class='stock-card-sidebar'>
+                            <div style='display:flex; justify-content:space-between;'>
+                                <b>{row['name']}</b>
+                                <span class='sector-badge'>{row['sector']}</span>
+                            </div>
+                            <p style='margin:5px 0; color:#10b981; font-size:11px;'>🔥 ALPHA LEADER</p>
+                            <p style='font-size:11px; margin:0;'>Price: {int(price)} | SL: {int(price*0.95)}</p>
+                            <div class='pyramid-box-small'>
+                                <b>📐 Pyramid: {int(price*1.05)}</b>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+            except: st.write("Scanning...")
 
 # =========================================================
-# 🛡️ MODULE: PORTFOLIO & AUDIT MANUAL
+# 🛡️ MAIN BODY: AUDIT & PORTFOLIO
 # =========================================================
-st.divider()
 col_audit, col_port = st.columns([1, 1])
 
 with col_audit:
     st.subheader("🔍 Manual Radar Audit")
-    check_ticker = st.text_input("Masukkan Kode Saham:").upper()
+    check_ticker = st.text_input("Kode Saham (Contoh: BBRI):").upper()
     if st.button("🚀 JALANKAN AUDIT"):
         res = run_audit(check_ticker, ihsg_ret)
         if res:
@@ -147,14 +146,24 @@ with col_audit:
             st.write(f"**Vonis Strategis: {check_ticker}**")
             for label, pass_check in checks.items():
                 st.markdown(f"<span class='{'audit-pass' if pass_check else 'audit-fail'}'>{'✅ PASS' if pass_check else '❌ FAIL'}</span> : {label}", unsafe_allow_html=True)
-            st.markdown(f"<div class='pyramid-box'><b>📐 Plan:</b> Entry {int(price)} | Pyramid {int(price*1.05)}</div>", unsafe_allow_html=True)
+            
+            p_price = int(price * 1.05)
+            st.markdown(f"""
+            <div style='background-color:#161b22; padding:15px; border-radius:10px; border:1px solid #30363d; margin-top:10px;'>
+                <b style='color:#a78bfa;'>📐 {check_ticker} Tactical Plan:</b><br>
+                • Initial Entry: {int(price)}<br>
+                • Stop Loss: {int(price*0.95)}<br>
+                • <b>Next Pyramid: {p_price} (+5%)</b><br>
+                • <b>Risk-Free Action:</b> Move SL to {int(price)} when Pyramid hits.
+            </div>
+            """, unsafe_allow_html=True)
             st.info("LONTARKAN PELURU 🚀" if all(checks.values()) else "TIARAP ⛔")
 
 with col_port:
     st.subheader("🛡️ Portfolio Manager")
-    t_manual = st.text_input("Kode Saham:").upper()
+    t_manual = st.text_input("Kode Portfolio:").upper()
     c1, c2 = st.columns(2)
     if c1.button("🛒 BELI"): st.success("ADD Signal Sent!")
     if c2.button("🗑️ JUAL"): st.error("DEL Signal Sent!")
 
-st.caption("V45.0 OMNI-APEX | Sidebar Restored | Logic Upgraded.")
+st.caption("V45.0 OMNI-APEX | Signals Moved to Sidebar | UI Preserved.")

@@ -4,15 +4,17 @@ import yfinance as yf
 import numpy as np
 import warnings
 import pytz
+import time
+import random
 from datetime import datetime
 from tradingview_screener import Query, Column
 import concurrent.futures
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V48.0 PRESTIGE COMMANDER", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V49.2 STEALTH MODE", layout="wide", page_icon="🛡️")
 
-# --- TEMA VISUAL SUPREME (RESTORED) ---
+# --- TEMA VISUAL SUPREME (LOCKED 100%) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
@@ -50,6 +52,9 @@ def get_market_context():
 
 def run_deep_audit(ticker, ihsg_ret):
     try:
+        # 🛡️ STEALTH MODE: Jeda acak 0.5 - 1.5 detik agar tidak dianggap Spammer / DDoS
+        time.sleep(random.uniform(0.5, 1.5))
+        
         stock_obj = yf.Ticker(f"{ticker}.JK")
         df = stock_obj.history(period="2y", auto_adjust=True, timeout=10)
         if df.empty or len(df) < 200: return None, 0
@@ -57,7 +62,10 @@ def run_deep_audit(ticker, ihsg_ret):
         c = df['Close'].iloc[-1]
         v = df['Volume'].iloc[-1]
         
-        s150, s200 = df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
+        # LOGIKA WORLD CHAMPION (Dihitung Penuh di YFinance)
+        s50 = df['Close'].rolling(50).mean().iloc[-1]
+        s150 = df['Close'].rolling(150).mean().iloc[-1]
+        s200 = df['Close'].rolling(200).mean().iloc[-1]
         weekly_ma = df['Close'].rolling(30).mean().iloc[-1]
         
         rs_line = df['Close'] / yf.Ticker("^JKSE").history(period="2y")['Close'].reindex(df.index, method='ffill')
@@ -73,6 +81,7 @@ def run_deep_audit(ticker, ihsg_ret):
         cmf = mf_vol.rolling(20).sum().iloc[-1] / df['Volume'].rolling(20).sum().iloc[-1].replace(0, 1e-10)
         
         checks = {
+            "Uptrend Status": bool(c > s50 > s200),
             "Minervini Stage 2": bool(c > s150 > s200),
             "Weekly Anchor": bool(c > weekly_ma),
             "Alpha RS Slope": bool(s_ret > ihsg_ret and rs_slope),
@@ -83,7 +92,7 @@ def run_deep_audit(ticker, ihsg_ret):
     except: return None, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🏆 V48.0 PRESTIGE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Engine: V8 Multi-Thread ⚡ | All Logic Integrated | Restored Version</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🛡️ V49.2 PRESTIGE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Engine: TV Filter + V8 Multi-Thread | Stealth Anti-Spam Active 🚦</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -99,45 +108,51 @@ with st.sidebar:
         st.cache_data.clear()
         st.success("Cache Cleared!")
 
-# --- 🚀 MAIN DASHBOARD ---
+# --- 🚀 MAIN DASHBOARD (V8 PIPELINE) ---
 ihsg_ret, is_bullish, mkt_breadth = get_market_context()
 max_p = cap / 100
 
 if is_market_open or bypass:
     st.subheader(f"📡 {mode} Result (Market Cap > 500B)")
     try:
-        # Saringan Awal (TV)
+        # ⚡ TAHAP 1: FILTERING TRADINGVIEW SUPER AMAN
         q = (Query().set_markets('indonesia').select('name','close','sector','average_volume_120d')
-             .where(Column('market_cap_basic') >= 5e11, Column('close') <= max_p, Column('average_volume_120d') >= 1e5).limit(10))
+             .where(
+                 Column('market_cap_basic') >= 5e11, 
+                 Column('close') <= max_p, 
+                 Column('average_volume_120d') >= 1e5
+             ).limit(20))
         _, df_raw = q.get_scanner_data()
         
         valid_signals = []
         
+        # ⚡ TAHAP 2: 8 TANGAN VIRTUAL (DENGAN STEALTH DELAY)
         if mode == "Turbo (Fast)":
             for _, row in df_raw.iterrows():
-                valid_signals.append((row, {"Turbo Mode": True}, row['close']))
+                valid_signals.append((row['name'], row['sector'], {"Turbo Mode": True}, row['close']))
         else:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor: # Diturunkan ke 5 tangan agar lebih "sopan"
                 future_to_row = {executor.submit(run_deep_audit, row['name'], ihsg_ret): row for _, row in df_raw.iterrows()}
                 for future in concurrent.futures.as_completed(future_to_row):
                     row = future_to_row[future]
                     try:
                         checks, prc = future.result()
                         if checks and all(checks.values()):
-                            valid_signals.append((row, checks, prc))
+                            valid_signals.append((row['name'], row['sector'], checks, prc))
                     except: pass
         
+        # RENDER TAMPILAN SUPREME
         if valid_signals:
             cols = st.columns(2)
             v_idx = 0
-            for row, checks, prc in valid_signals:
+            for name, sector, checks, prc in valid_signals:
                 sl, tp = int(prc*(1-risk/100)), int(prc + (prc*0.05)*rrr)
                 with cols[v_idx % 2]:
                     st.markdown(f"""
                     <div class='stock-card'>
                         <div style='display:flex; justify-content:space-between;'>
-                            <h2 style='margin:0; color:#a78bfa;'>{row['name']}</h2>
-                            <span class='sector-badge'>{row['sector']}</span>
+                            <h2 style='margin:0; color:#a78bfa;'>{name}</h2>
+                            <span class='sector-badge'>{sector}</span>
                         </div>
                         <div style='display:flex; justify-content:space-between; margin-top:15px;'>
                             <div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div>
@@ -145,36 +160,51 @@ if is_market_open or bypass:
                             <div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div>
                         </div>
                         <div class='pyramid-panel'>
-                            <b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN (PYRAMID):</b><br>
+                            <b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN:</b><br>
                             <span style='font-size:11px;'>Next Entry (+5%): <b>{int(prc*1.05)}</b> | Risk-Free SL: <b>{int(prc)}</b></span>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
                 v_idx += 1
         else:
-            st.info("Radar sedang memindai, belum ada sinyal kuat yang lolos filter.")
+            st.info("Stealth Scan selesai. Belum ada sinyal kuat yang lolos filter Minervini.")
             
-    except:
-        st.warning("Radar sedang mengkalibrasi satelit. Silakan tekan Clear Cache jika macet.")
+    except Exception as e:
+        st.warning(f"Satelit TradingView sedang sibuk atau menolak koneksi. Silakan coba lagi dalam beberapa detik.")
 else:
     st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass' di Sidebar.")
 
-# --- 🛡️ TOOLS ---
+# --- 🛡️ TOOLS (AUDIT PIPELINE) ---
 st.divider()
 ca, cb = st.columns(2)
 with ca:
-    st.subheader("🔍 All-Cap Sniper Audit")
-    tid = st.text_input("Ticker Target:").upper()
-    if st.button("🚀 Run Champion Audit"):
-        with st.spinner("Membedah Target..."):
-            res, p_val = run_deep_audit(tid, ihsg_ret)
-            if res:
-                st.write(f"### Vonis {tid}:")
-                for k, v in res.items():
-                    st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
-                if all(res.values()): st.success("WORLD CHAMPION CONFIRMED 🚀")
-                st.markdown(f"<div class='pyramid-panel'><b>📐 Pyramid Plan:</b> Next {int(p_val*1.05)} | Risk-Free SL {int(p_val)}</div>", unsafe_allow_html=True)
-            else: st.error("Data tidak ditemukan atau server sibuk.")
+    st.subheader("🔍 All-Cap Tactical Audit")
+    tid_input = st.text_input("Ticker Target:").upper()
+    tid = tid_input.replace(".JK", "") 
+    
+    if st.button("🚀 Run Tactical Audit"):
+        if tid:
+            with st.spinner(f"Interogasi Senyap {tid}..."):
+                # CEK SEKTOR VIA TV
+                sector_info = "IDX"
+                try:
+                    q_tv = Query().set_markets('indonesia').select('name','sector').where(Column('name') == tid)
+                    _, df_tv = q_tv.get_scanner_data()
+                    if not df_tv.empty: sector_info = df_tv.iloc[0]['sector']
+                except: pass
+                
+                st.write(f"Sektor: **{sector_info}**")
+                
+                # INTEROGASI MENDALAM VIA YFINANCE
+                res, p_val = run_deep_audit(tid, ihsg_ret)
+                if res:
+                    st.write(f"### Vonis {tid}:")
+                    for k, v in res.items():
+                        st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
+                    if all(res.values()): st.success("WORLD CHAMPION CONFIRMED 🚀")
+                    st.markdown(f"<div class='pyramid-panel'><b>📐 Strategic Plan:</b> Entry {int(p_val)} | Next {int(p_val*1.05)} | SL {int(p_val*(1-risk/100))}</div>", unsafe_allow_html=True)
+                else:
+                    st.error("Data historis tidak ditemukan di YFinance. Pastikan kode saham benar.")
 
 with cb:
     st.subheader("🛡️ Portfolio & Buy Manager")
@@ -183,4 +213,4 @@ with cb:
     if st.button("🛒 EKSEKUSI / ADD SIGNAL"): 
         st.success(f"Signal {pid} berhasil dikirim!")
 
-st.caption("V48.0 PRESTIGE | Restored Version | Stability Focus.")
+st.caption("V49.2 PRESTIGE | Stealth Mode Active (Anti-DDoS) | Safe Multi-Threading.")

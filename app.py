@@ -23,7 +23,7 @@ except:
     TELE_TOKEN = "8457858315:AAGPSHq0UsfPv8MZ733tHs40gAOxwvx7G0o"
     TELE_CHAT_ID = "5916986433"
 
-# --- TEMA VISUAL UNGU KLASIK (PRESERVED) ---
+# --- TEMA VISUAL UNGU KLASIK (100% PRESERVED) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
@@ -34,6 +34,7 @@ st.markdown("""
     .sector-badge { background-color: #8b5cf6; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
     .lockdown-box { background-color: #450a0a; border: 1px solid #dc2626; padding: 15px; border-radius: 8px; color: #fca5a5; margin-bottom:20px; }
     .mtf-badge { background-color: #059669; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
+    .ara-badge { background-color: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -50,7 +51,11 @@ def get_market_health():
 @st.cache_data(ttl=1800)
 def get_tradingview_radar():
     try:
-        q = (Query().set_markets('indonesia').select('name','close','sector','Perf.1M','market_cap_basic').where(Column('market_cap_basic') >= 1e11))
+        # 💉 SUNTIKAN LIMIT 1000: Menjamin seluruh saham IHSG masuk ke dalam radar utama
+        q = (Query().set_markets('indonesia')
+             .select('name','close','sector','Perf.1M','market_cap_basic')
+             .where(Column('market_cap_basic') >= 1e11)
+             .limit(1000))
         _, df = q.get_scanner_data()
         return df
     except: return pd.DataFrame()
@@ -104,6 +109,15 @@ def detect_bandar_footprint(df):
         return cmf.iloc[-1] > 0.05
     except: return True
 
+def detect_ara_momentum(df):
+    try:
+        c_close = df['Close'].iloc[-1]
+        p_close = df['Close'].iloc[-2]
+        pct_change = (c_close - p_close) / p_close
+        vol_sma20 = df['Volume'].rolling(20).mean().iloc[-2]
+        return (pct_change >= 0.05) and (df['Volume'].iloc[-1] > (vol_sma20 * 2))
+    except: return False
+
 # --- ⏳ TIME GATE WIB ---
 tz_wib = pytz.timezone('Asia/Jakarta')
 waktu_sekarang = datetime.now(tz_wib)
@@ -122,9 +136,7 @@ st.markdown(f"""
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
     st.header("🎛️ Settings")
-    
-    # 💉 SUNTIKAN: Saklar On/Off Premium Mode
-    premium_mode = st.toggle("🚀 Activate Premium Features", value=False, help="Aktifkan pelacakan jejak Bandar (Money Flow) secara otomatis.")
+    premium_mode = st.toggle("🚀 Activate Premium Features", value=False, help="Aktifkan pelacakan jejak Bandar (Money Flow)")
     premium_api_key = st.text_input("🔑 Premium API Key (Optional)", type="password")
     
     st.divider()
@@ -162,7 +174,6 @@ if mesin_aktif:
                         time.sleep(1.2)
                         df_hist = yf.Ticker(f"{t_sym}.JK").history(period="1y", auto_adjust=True)
                         
-                        # 💉 SUNTIKAN: Logika Cek Bandar hanya aktif jika premium_mode = ON
                         bandar_check = detect_bandar_footprint(df_hist) if premium_mode else True
                         
                         if not df_hist.empty and check_minervini_template(df_hist) and detect_squeeze(df_hist) and bandar_check:
@@ -175,6 +186,11 @@ if mesin_aktif:
                             sl = int(trigger - (atr * 2.0))
                             tp = int(trigger + ((trigger - sl) * rrr_min))
                             
+                            ts_5pct = int(trigger * 0.95)
+                            
+                            ara_check = detect_ara_momentum(df_hist)
+                            ara_html = "<span class='ara-badge'>⚡ POTENSI ARA</span>" if ara_check else ""
+                            
                             if (tp - trigger) / (trigger - sl) >= rrr_min:
                                 lot = int(((capital * (risk_pct/100)) / (trigger - sl)) / 100)
                                 if market_health == "BEARISH": lot = int(lot * 0.5)
@@ -182,7 +198,19 @@ if mesin_aktif:
                                     used_fase += 1
                                     valid_total += 1
                                     scanned_tickers.append(t_sym)
-                                    st.markdown(f"<div class='stock-card'><h3>{t_sym} <span class='sector-badge'>{row['sector']}</span></h3><p>SL: {sl} | TP: {tp}</p></div>", unsafe_allow_html=True)
+                                    
+                                    p1 = f"Entry 1: {int(lot*0.5)} Lot @ {trigger}"
+                                    p2 = f"Entry 2: {int(lot*0.5)} Lot @ {int(trigger*1.02)}"
+                                    
+                                    st.markdown(f"""
+                                    <div class='stock-card'>
+                                        <h3>{t_sym} <span class='sector-badge'>{row['sector']}</span> <span class='mtf-badge'>WEEKLY CONFIRMED</span>{ara_html}</h3>
+                                        <p style='font-size:13px; color:#9ca3af;'>News: {news_msg}</p>
+                                        <p><b>🛡️ Pyramiding:</b><br>{p1}<br>{p2}</p>
+                                        <p><b>SL: {sl} | TP: {tp} | 🔄 TS(5%): {ts_5pct}</b></p>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                    
                                     try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{t_sym}"}, timeout=1)
                                     except: pass
                         del df_hist
@@ -191,13 +219,17 @@ if mesin_aktif:
                 status.update(label="Omni-Scan Complete!", state="complete")
         except Exception as e: st.error(f"Error: {e}")
 
-# (Sisa kode Portfolio Manager tetap sama...)
+# =========================================================
+# 🛠️ MODULE: AUTOMATIC PORTFOLIO MANAGER
+# =========================================================
 st.divider()
 st.subheader("🛡️ OMNI-APEX Portfolio Manager")
+
 def load_portfolio():
     if os.path.exists("portfolio.txt"):
         with open("portfolio.txt", "r") as f: return list(set([line.strip().upper() for line in f.readlines() if line.strip()]))
     return []
+
 col_add, col_del = st.columns(2)
 with col_add:
     st.write("🛒 **Tambah Pantauan (Buy)**")
@@ -209,6 +241,7 @@ with col_add:
             try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{selected_to_buy}"}, timeout=1)
             except: pass
             st.success(f"✅ Sinyal dikirim!")
+
 with col_del:
     st.write("🗑️ **Hapus Pantauan (Exit)**")
     current_portfolio = load_portfolio()
@@ -218,4 +251,4 @@ with col_del:
             try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_DEL:{to_delete}"}, timeout=1)
             except: pass
             st.error(f"🗑️ Perintah hapus dikirim.")
-if not mesin_aktif: st.info(f"🔴 RADAR STANDBY. Aktif 08:30 WIB.")
+if not mesin_aktif: st.info(f"🔴 RADAR STANDBY. Aktif otomatis pada 08:30 WIB.")

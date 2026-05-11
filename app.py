@@ -9,7 +9,7 @@ from tradingview_screener import Query, Column
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V47.0 ULTIMATE COMMANDER", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V47.1 HYBRID SPEED", layout="wide", page_icon="⚡")
 
 # --- TEMA VISUAL ELITE SUPREME ---
 st.markdown("""
@@ -18,23 +18,20 @@ st.markdown("""
     .status-card { 
         border-radius: 15px; padding: 25px; margin-bottom: 25px; 
         border: 1px solid #30363d; background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
     .stock-card { 
         background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; 
         padding: 20px; margin-bottom: 20px; border-left: 6px solid #8b5cf6;
-        transition: transform 0.2s;
     }
-    .stock-card:hover { transform: translateY(-5px); border-color: #a78bfa; }
     .sector-badge { background-color: #2d1b4d; color: #a78bfa; padding: 3px 12px; border-radius: 20px; font-size: 10px; font-weight: bold; border: 1px solid #7c3aed; }
     .pyramid-panel { background-color: #0f172a; border: 1px dashed #4338ca; padding: 15px; border-radius: 8px; margin-top: 15px; }
+    .target-value { font-size: 20px; font-weight: bold; color: #f8fafc; }
     .audit-pass { color: #10b981; font-weight: bold; font-size: 11px; }
     .audit-fail { color: #ef4444; font-weight: bold; font-size: 11px; }
-    .target-value { font-size: 20px; font-weight: bold; color: #f8fafc; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ⏳ TIME & MARKET CONTEXT ---
+# --- ⏳ TIME & CONTEXT ---
 tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
 is_market_open = datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time()
@@ -46,7 +43,7 @@ def get_market_context():
         if idx.empty: return 0, True, 50
         curr = idx['Close'].iloc[-1]
         old = idx['Close'].iloc[-126] if len(idx) > 126 else idx['Close'].iloc[0]
-        breadth = (idx['Close'] > idx['Close'].rolling(50).mean()).iloc[-10:].sum() * 10 # Sample Breadth
+        breadth = (idx['Close'] > idx['Close'].rolling(50).mean()).iloc[-10:].sum() * 10
         return (curr / old) - 1, curr > idx['Close'].rolling(50).mean().iloc[-1], breadth
     except: return 0, True, 50
 
@@ -89,47 +86,44 @@ def run_deep_audit(ticker, ihsg_ret):
     except: return None, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"""
-<div class='status-card'>
-    <h1 style='margin:0; font-size: 32px; color:#ddd6fe;'>🏆 V47.0 OMNI-APEX: ULTIMATE</h1>
-    <p style='margin:0; opacity:0.8;'>World Champion Edition | Multi-Fitur Terintegrasi</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🏆 V47.1 OMNI-APEX: HYBRID SPEED</h1><p style='margin:0; opacity:0.8;'>Auto: Mid-Large Cap | Audit: All-Cap | World Champion Edition</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Command Center")
     cap = st.number_input("Capital (Rp)", value=1000000)
-    mode = st.radio("🚀 Scan Speed", ["Turbo (Fast)", "Deep (Champion Audit)"])
+    mode = st.radio("🚀 Scan Type", ["Turbo (Fast)", "Deep (Champion Audit)"])
     st.divider()
     risk = st.slider("Max Risk (%)", 1.0, 10.0, 5.0)
     rrr = st.number_input("Risk-Reward Ratio", value=3.0)
-    st.divider()
     bypass = st.toggle("🚨 Bypass Market Time", value=False)
-    st.info("Turbo: Cepat (Data TV) | Deep: Akurat (Data Yahoo 2Thn)")
 
 # --- 🚀 MAIN DASHBOARD ---
 ihsg_ret, is_bullish, mkt_breadth = get_market_context()
 max_p = cap / 100
 
 if is_market_open or bypass:
-    st.subheader(f"📡 {mode} Alpha Signals")
+    st.subheader(f"📡 Mid-Large Cap Radar (Market Cap > 500B)")
     try:
+        # FILTER MARKET CAP DI SINI (HANYA UNTUK AUTO SCAN)
         q = (Query().set_markets('indonesia').select('name','close','sector','volume','change','average_volume_120d')
-             .where(Column('close') <= max_p, Column('close') > Column('SMA200'), Column('average_volume_120d') >= 1e5).limit(12))
+             .where(
+                 Column('market_cap_basic') >= 5e11, # Rp 500 Miliar (Mid-Large Cap)
+                 Column('close') <= max_p, 
+                 Column('close') > Column('SMA200'),
+                 Column('average_volume_120d') >= 1e5
+             ).limit(10))
         _, df_raw = q.get_scanner_data()
         
         cols = st.columns(2)
         v_idx = 0
         for _, row in df_raw.iterrows():
-            # Turbo Mode langsung lolos, Deep Mode diaudit lagi
             if mode == "Turbo (Fast)":
-                checks, prc = {"Turbo Mode": True}, row['close']
+                checks, prc = {"Turbo": True}, row['close']
             else:
                 checks, prc = run_deep_audit(row['name'], ihsg_ret)
             
             if checks and all(checks.values()):
-                sl, tp = int(prc*(1-risk/100)), int(prc + (prc*0.05)*rrr)
                 with cols[v_idx % 2]:
                     st.markdown(f"""
                     <div class='stock-card'>
@@ -140,7 +134,7 @@ if is_market_open or bypass:
                         <div style='display:flex; justify-content:space-between; margin-top:15px;'>
                             <div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div>
                             <div><p style='color:#9ca3af; font-size:11px;'>TRAILING SL (5%)</p><p class='target-value' style='color:#f87171;'>{int(prc*0.95)}</p></div>
-                            <div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div>
+                            <div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{int(prc + (prc*0.05)*rrr)}</p></div>
                         </div>
                         <div class='pyramid-panel'>
                             <b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN:</b><br>
@@ -149,32 +143,30 @@ if is_market_open or bypass:
                     </div>
                     """, unsafe_allow_html=True)
                 v_idx += 1
-    except: st.write("Mengkalibrasi Radar...")
+    except: st.write("Scanning...")
 else:
-    st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass' di Sidebar untuk analisa malam.")
+    st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass' di Sidebar.")
 
 # --- 🛡️ TOOLS ---
 st.divider()
 ca, cb = st.columns(2)
 with ca:
-    st.subheader("🔍 Deep Champion Audit")
-    tid = st.text_input("Ticker:").upper()
+    st.subheader("🔍 All-Cap Sniper Audit")
+    tid = st.text_input("Ticker Target (Small-Mid-Large):").upper()
     if st.button("🚀 Run Full Audit"):
         res, p_val = run_deep_audit(tid, ihsg_ret)
         if res:
             st.write(f"### Vonis {tid}:")
             for k, v in res.items():
                 st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
-            if all(res.values()): st.success("SYARAT WORLD CHAMPION TERPENUHI 🚀")
-            else: st.warning("BELUM LOLOS STANDAR JUARA ⛔")
-        else: st.error("Data Tidak Ditemukan.")
+            if all(res.values()): st.success("WORLD CHAMPION CONFIRMED 🚀")
+            st.markdown(f"<div class='pyramid-panel'><b>📐 Pyramid Plan:</b> Next {int(p_val*1.05)} | Risk-Free SL {int(p_val)}</div>", unsafe_allow_html=True)
+        else: st.error("Data tidak ditemukan.")
 
 with cb:
-    st.subheader("🛡️ Portfolio & Sector Radar")
-    st.write(f"**Market Breadth:** {mkt_breadth}% Saham di atas SMA 50")
-    if mkt_breadth > 60: st.success("MARKET HEALTHY 🌲")
-    else: st.error("MARKET CAUTION 🚩")
-    pid = st.text_input("Add to Portfolio:").upper()
-    if st.button("🛒 SEND SIGNAL"): st.success(f"{pid} Bridge Active!")
+    st.subheader("🛡️ Portfolio Radar")
+    st.write(f"Market Breadth: {mkt_breadth}%")
+    pid = st.text_input("Add Portfolio:").upper()
+    if st.button("🛒 SEND"): st.success(f"{pid} Bridge Active!")
 
-st.caption("V47.0 ULTIMATE | MTF + VCP + RS Slope + Budget Sniper + Turbo Mode.")
+st.caption("V47.1 HYBRID | Speed Optimized | All World Champion Logic Preserved.")

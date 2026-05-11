@@ -14,7 +14,7 @@ from tradingview_screener import Query, Column
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
 pd.options.mode.chained_assignment = None
-st.set_page_config(page_title="V45.0 OMNI-APEX BUDGET SNIPER", layout="wide", page_icon="🌍")
+st.set_page_config(page_title="V45.0 OMNI-APEX DEFENSE", layout="wide", page_icon="🌍")
 
 try:
     TELE_TOKEN = st.secrets["TELE_TOKEN"]
@@ -30,6 +30,7 @@ st.markdown("""
     .status-card { 
         border-radius: 15px; padding: 25px; margin-bottom: 25px; 
         border: 1px solid #30363d; background: linear-gradient(135deg, #1e1b4b 0%, #2e1065 100%);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }
     .stock-card { 
         background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; 
@@ -76,7 +77,7 @@ def run_elite_audit(ticker, ihsg_ret):
     except: return None
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: BUDGET SNIPER</h1><div style='display: flex; justify-content: space-between; align-items: center; margin-top: 10px;'><p style='margin:0; opacity:0.8;'>Affordable Leaders | Tactical Pyramiding</p><p class='heartbeat' style='margin:0;'>📡 SCANNER: {now.strftime('%H:%M:%S')} WIB</p></div></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🌍 V45.0 OMNI-APEX: DEFENSE SECURED</h1><div style='display: flex; justify-content: space-between; align-items: center; margin-top: 10px;'><p style='margin:0; opacity:0.8;'>Budget Sniper | Alpha Leaders | Manual Override</p><p class='heartbeat' style='margin:0;'>📡 SCANNER: {now.strftime('%H:%M:%S')} WIB</p></div></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -84,23 +85,25 @@ with st.sidebar:
     cap = st.number_input("Capital (Rp)", value=1000000)
     risk_p = st.slider("Max Risk (%)", 1.0, 10.0, 5.0)
     rrr = st.number_input("Min RRR", value=3.0)
-    bypass = st.toggle("🚨 Bypass Market Time", value=True)
+    st.divider()
+    # BYPASS DEFAULT OFF (SESUAI INSTRUKSI)
+    bypass = st.toggle("🚨 Bypass Market Time", value=False)
+    st.caption("Status: Standby by Default (Safe Mode)")
 
 # --- 🚀 MAIN DASHBOARD ---
 ihsg_ret, is_bullish = get_market_context()
-max_price_per_share = cap / 100 # MODAL 1JT -> MAX HARGA 10.000
+max_price_per_share = cap / 100 
 
 if is_market_open or bypass:
     st.subheader(f"📡 Affordable Alpha Signals (Max: Rp {int(max_price_per_share)}/sh)")
-    with st.status("Hunting for Cheap Gems...", expanded=False):
+    with st.status("Hunting for Leaders...", expanded=False):
         try:
-            # TURUNKAN MARKET CAP & TAMBAH FILTER HARGA
             q = (Query().set_markets('indonesia').select('name','close','sector','volume')
                  .where(
-                     Column('market_cap_basic') >= 1e10, # 10 Miliar (Menangkap Small Caps)
-                     Column('close') <= max_price_per_share, # Filter Harga sesuai Modal
+                     Column('market_cap_basic') >= 1e10, 
+                     Column('close') <= max_price_per_share, 
                      Column('close') > Column('SMA200')
-                 ).limit(20))
+                 ).limit(12))
             _, df_raw = q.get_scanner_data()
             
             cols = st.columns(2)
@@ -109,7 +112,7 @@ if is_market_open or bypass:
                 res = run_elite_audit(row['name'], ihsg_ret)
                 if res and all(res[0].values()):
                     price = int(res[1])
-                    sl, tp = int(price * 0.95), int(price + (price*0.05)*rrr)
+                    sl, tp = int(price * (1 - risk_p/100)), int(price + (price*0.05)*rrr)
                     pyr = int(price * 1.05)
                     
                     with cols[valid_idx % 2]:
@@ -126,34 +129,34 @@ if is_market_open or bypass:
                             </div>
                             <div class='pyramid-panel'>
                                 <b style='color:#818cf8; font-size:12px;'>📐 BUDGET PYRAMID PLAN:</b><br>
-                                <p style='margin:5px 0; font-size:11px;'>Next Entry (+5%): <b>{pyr}</b> (Affordable)</p>
-                                <p style='margin:0; font-size:10px; color:#94a3b8;'><i>1 Lot: Rp {price*100:,} - Sisa Modal: Rp {cap - (price*100):,}</i></p>
+                                <p style='margin:5px 0; font-size:11px;'>Next Entry (+5%): <b>{pyr}</b></p>
+                                <p style='margin:0; font-size:10px; color:#94a3b8;'><i>Lakukan Average Up hanya jika harga konfirmasi {pyr}.</i></p>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
                     valid_idx += 1
-            if valid_idx == 0: st.info("Tidak ada saham murah yang lolos kriteria Alpha malam ini.")
-        except: st.error("Mencoba menyambungkan kembali...")
+            if valid_idx == 0: st.info("Belum ada Alpha Leader murah yang terdeteksi.")
+        except: st.error("Koneksi Radar Terputus.")
 else:
-    st.info("🔴 RADAR STANDBY - Aktifkan Bypass di Sidebar.")
+    st.info("🔴 RADAR STANDBY - Pasar Tutup. Silakan aktifkan 'Bypass Market Time' di sidebar untuk audit manual atau cek data penutupan.")
 
 # --- 🛡️ TOOLS ---
 st.divider()
 col_audit, col_port = st.columns(2)
 with col_audit:
     st.subheader("🔍 Audit Manual")
-    tid = st.text_input("Ticker:").upper()
-    if st.button("🚀 Audit"):
+    tid = st.text_input("Ticker Target:").upper()
+    if st.button("🚀 Run Tactical Audit"):
         aud = run_elite_audit(tid, ihsg_ret)
         if aud:
             c, p = aud[0], int(aud[1])
             st.write(f"Vonis {tid}: {'✅ LULUS' if all(c.values()) else '❌ GAGAL'}")
             st.markdown(f"Harga: {p} | 1 Lot: Rp {p*100:,}")
-            if p > max_price_per_share: st.warning("⚠️ Saham ini terlalu mahal untuk modal Kapten.")
+            if p > max_price_per_share: st.warning("⚠️ Terlalu mahal untuk amunisi Kapten.")
 
 with col_port:
     st.subheader("🛡️ Portfolio Manager")
     pid = st.text_input("Ticker Portfolio:").upper()
-    if st.button("🛒 ADD SIGNAL"): st.success(f"Signal {pid} Sent!")
+    if st.button("🛒 ADD SIGNAL"): st.success(f"Signal {pid} Sent to Telegram!")
 
-st.caption(f"V45.0 OMNI-APEX: BUDGET SNIPER | Max Price Filter: Rp {max_price_per_share}/sh")
+st.caption(f"V45.0 OMNI-APEX DEFENSE | Manual Override Mode Active.")

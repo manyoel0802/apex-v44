@@ -20,7 +20,6 @@ try:
     TELE_TOKEN = st.secrets["TELE_TOKEN"]
     TELE_CHAT_ID = st.secrets["TELE_CHAT_ID"]
 except:
-    # Default Fallback
     TELE_TOKEN = "8457858315:AAGPSHq0UsfPv8MZ733tHs40gAOxwvx7G0o"
     TELE_CHAT_ID = "5916986433"
 
@@ -39,6 +38,35 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# --- ⏳ TIME GATE WIB ---
+tz_wib = pytz.timezone('Asia/Jakarta')
+waktu_sekarang = datetime.now(tz_wib)
+mesin_aktif = datetime.strptime("08:30", "%H:%M").time() <= waktu_sekarang.time() <= datetime.strptime("16:30", "%H:%M").time()
+
+# --- 🛡️ MODUL MEMORI ANTI-SPAM (SILUMAN) ---
+def get_today_signals():
+    today_str = waktu_sekarang.strftime("%Y-%m-%d")
+    try:
+        if os.path.exists("daily_signals.txt"):
+            with open("daily_signals.txt", "r") as f:
+                lines = f.readlines()
+                if lines and lines[0].strip() == today_str:
+                    return [line.strip() for line in lines[1:]]
+    except: pass
+    return []
+
+def add_today_signal(ticker):
+    today_str = waktu_sekarang.strftime("%Y-%m-%d")
+    signals = get_today_signals()
+    if ticker not in signals:
+        signals.append(ticker)
+        try:
+            with open("daily_signals.txt", "w") as f:
+                f.write(today_str + "\n")
+                for s in signals:
+                    f.write(s + "\n")
+        except: pass
+
 # --- 🌍 CORE ENGINES ---
 @st.cache_data(ttl=3600)
 def get_market_health():
@@ -52,7 +80,6 @@ def get_market_health():
 @st.cache_data(ttl=1800)
 def get_tradingview_radar():
     try:
-        # ⚡ INJEKSI TURBO: Limit 1000 + Pre-Filter SMA 50 & 200 agar scan sangat cepat
         q = (Query().set_markets('indonesia')
              .select('name','close','sector','Perf.1M','market_cap_basic')
              .where(
@@ -123,11 +150,6 @@ def detect_ara_momentum(df):
         return (pct_change >= 0.05) and (df['Volume'].iloc[-1] > (vol_sma20 * 2))
     except: return False
 
-# --- ⏳ TIME GATE WIB ---
-tz_wib = pytz.timezone('Asia/Jakarta')
-waktu_sekarang = datetime.now(tz_wib)
-mesin_aktif = datetime.strptime("08:30", "%H:%M").time() <= waktu_sekarang.time() <= datetime.strptime("16:30", "%H:%M").time()
-
 # --- UI HEADER ---
 st.markdown(f"""
 <div class='status-card bg-sector'>
@@ -176,7 +198,6 @@ if mesin_aktif:
                         if used_fase >= 2: break
                         t_sym = row['name']
                         
-                        # ⚡ KECEPATAN: Delay dikurangi karena target sudah difilter oleh TradingView
                         time.sleep(0.3) 
                         
                         df_hist = yf.Ticker(f"{t_sym}.JK").history(period="1y", auto_adjust=True)
@@ -218,8 +239,13 @@ if mesin_aktif:
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    try: requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{t_sym}"}, timeout=1)
-                                    except: pass
+                                    # 🛡️ EKSEKUSI ANTI-SPAM (Hanya kirim Telegram jika belum pernah dikirim hari ini)
+                                    today_signals = get_today_signals()
+                                    if t_sym not in today_signals:
+                                        try: 
+                                            requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", data={"chat_id": TELE_CHAT_ID, "text": f"COMMAND_ADD:{t_sym}"}, timeout=1)
+                                            add_today_signal(t_sym)
+                                        except: pass
                         del df_hist
                         gc.collect()
                 if valid_total > 0: st.session_state['v45_scanned'] = scanned_tickers

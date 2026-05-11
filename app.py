@@ -6,11 +6,11 @@ import warnings
 import pytz
 from datetime import datetime
 from tradingview_screener import Query, Column
-import concurrent.futures  # ⚡ MESIN MULTI-THREADING (SPEED BOOSTER)
+import concurrent.futures
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V48.0 PRESTIGE COMMANDER", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V48.1 ULTIMATE PIPELINE", layout="wide", page_icon="💎")
 
 # --- TEMA VISUAL SUPREME (100% DIPERTAHANKAN) ---
 st.markdown("""
@@ -57,8 +57,9 @@ def run_deep_audit(ticker, ihsg_ret):
         c = df['Close'].iloc[-1]
         v = df['Volume'].iloc[-1]
         
-        # 1. MTF & MINERVINI
-        s150, s200 = df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
+        # 1. MTF & MINERVINI (Sisa filter yang tidak bisa di TV)
+        s150 = df['Close'].rolling(150).mean().iloc[-1]
+        s200 = df['Close'].rolling(200).mean().iloc[-1]
         weekly_ma = df['Close'].rolling(30).mean().iloc[-1]
         
         # 2. RS SLOPE & ALPHA
@@ -77,7 +78,7 @@ def run_deep_audit(ticker, ihsg_ret):
         cmf = mf_vol.rolling(20).sum().iloc[-1] / df['Volume'].rolling(20).sum().iloc[-1].replace(0, 1e-10)
         
         checks = {
-            "Minervini Stage 2": bool(c > s150 > s200),
+            "Minervini Fine-Tune": bool(c > s150 > s200),
             "Weekly Anchor": bool(c > weekly_ma),
             "Alpha RS Slope": bool(s_ret > ihsg_ret and rs_slope),
             "VCP & VDU Pattern": bool(vcp or vdu),
@@ -87,7 +88,7 @@ def run_deep_audit(ticker, ihsg_ret):
     except: return None, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🏆 V48.0 PRESTIGE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Mode: Deep Scan Default | Engine: V8 Multi-Thread ⚡ | All Logic Integrated</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🏆 V48.1 PRESTIGE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Engine: TV Pipeline + V8 Multi-Thread ⚡ | Max Speed & Precision</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -110,19 +111,25 @@ max_p = cap / 100
 if is_market_open or bypass:
     st.subheader(f"📡 {mode} Result (Market Cap > 500B)")
     try:
+        # ⚡ TAHAP 1: TRADINGVIEW BRUTAL PRE-FILTERING
         q = (Query().set_markets('indonesia').select('name','close','sector','average_volume_120d')
-             .where(Column('market_cap_basic') >= 5e11, Column('close') <= max_p, Column('average_volume_120d') >= 1e5).limit(10))
+             .where(
+                 Column('market_cap_basic') >= 5e11, 
+                 Column('close') <= max_p, 
+                 Column('close') > Column('SMA200'),
+                 Column('SMA50') > Column('SMA200'), # FILTER BARU: Pastikan Uptrend Kuat dari TV
+                 Column('average_volume_120d') >= 1e5
+             ).limit(15))
         _, df_raw = q.get_scanner_data()
         
         valid_signals = []
         
-        # ⚡ SISTEM MULTI-THREADING (PROSES PARALEL)
+        # ⚡ TAHAP 2: YFINANCE V8 ENGINE (Hanya mengecek yang lolos Tahap 1)
         if mode == "Turbo (Fast)":
             for _, row in df_raw.iterrows():
                 valid_signals.append((row, {"Turbo Mode": True}, row['close']))
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-                # Memerintahkan mesin mengeksekusi banyak saham sekaligus
                 future_to_row = {executor.submit(run_deep_audit, row['name'], ihsg_ret): row for _, row in df_raw.iterrows()}
                 for future in concurrent.futures.as_completed(future_to_row):
                     row = future_to_row[future]
@@ -133,7 +140,7 @@ if is_market_open or bypass:
                     except:
                         pass
         
-        # RENDER TAMPILAN (TIDAK ADA YANG BERUBAH)
+        # RENDER TAMPILAN
         if valid_signals:
             cols = st.columns(2)
             v_idx = 0
@@ -166,7 +173,7 @@ if is_market_open or bypass:
 else:
     st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass' di Sidebar.")
 
-# --- 🛡️ TOOLS (TIDAK ADA YANG BERUBAH) ---
+# --- 🛡️ TOOLS ---
 st.divider()
 ca, cb = st.columns(2)
 with ca:
@@ -190,4 +197,4 @@ with cb:
     if st.button("🛒 EKSEKUSI / ADD SIGNAL"): 
         st.success(f"Signal {pid} berhasil dikirim ke Telegram!")
 
-st.caption("V48.0 PRESTIGE | Multi-Thread Engine Activated | UI Intact.")
+st.caption("V48.1 PRESTIGE | TradingView Pre-Filter + V8 Engine.")

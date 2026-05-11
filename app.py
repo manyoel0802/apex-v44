@@ -9,7 +9,14 @@ from tradingview_screener import Query, Column
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V45.3 OMNI-APEX", layout="wide", page_icon="🌍")
+st.set_page_config(page_title="V45.4 OMNI-APEX", layout="wide", page_icon="🌍")
+
+try:
+    TELE_TOKEN = st.secrets["TELE_TOKEN"]
+    TELE_CHAT_ID = st.secrets["TELE_CHAT_ID"]
+except:
+    TELE_TOKEN = "8457858315:AAGPSHq0UsfPv8MZ733tHs40gAOxwvx7G0o"
+    TELE_CHAT_ID = "5916986433"
 
 # --- TEMA VISUAL ELITE SUPREME (PRESERVED) ---
 st.markdown("""
@@ -35,8 +42,8 @@ tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
 is_market_open = datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time()
 
-# --- 🌍 CORE INTELLIGENCE (BULLETPROOF VERSION) ---
-@st.cache_data(ttl=300) # Cache diperpendek agar data lebih segar
+# --- 🌍 CORE INTELLIGENCE (STRICT & ALL-CAP) ---
+@st.cache_data(ttl=300)
 def get_market_context():
     try:
         idx = yf.Ticker("^JKSE").history(period="1y")
@@ -49,18 +56,17 @@ def get_market_context():
 def run_elite_audit(ticker, ihsg_ret):
     try:
         stock_obj = yf.Ticker(f"{ticker}.JK")
-        # AMBIL 2 TAHUN DATA AGAR SMA 200 AMAN
         df = stock_obj.history(period="2y", auto_adjust=True)
-        if df.empty or len(df) < 200: return None, 0
+        if df.empty or len(df) < 150: return None, 0
         
         c = df['Close'].iloc[-1]
-        if np.isnan(c): return None, 0
+        if np.isnan(c) or c == 0: return None, 0
         
-        # Hitung Indikator dengan toleransi NaN
+        # Sinyal Sangat Ketat
         s150 = df['Close'].rolling(150).mean().iloc[-1]
         s200 = df['Close'].rolling(200).mean().iloc[-1]
         
-        # RS Check
+        # RS Alpha (Minimal 10% lebih kuat dari IHSG)
         stock_6m = df['Close'].iloc[-126] if len(df) > 126 else df['Close'].iloc[0]
         s_ret = (c / stock_6m) - 1
         
@@ -71,14 +77,14 @@ def run_elite_audit(ticker, ihsg_ret):
         
         checks = {
             "Minervini Stage 2": bool(c > s150 and s150 > s200),
-            "Alpha RS Leader": bool(s_ret > ihsg_ret),
-            "Bandar Accumulation": bool(cmf > 0.02) # Sedikit dilonggarkan untuk saham Small Cap
+            "Alpha RS Leader": bool(s_ret > (ihsg_ret + 0.1)), # LEBIH KETAT
+            "Bandar Accumulation": bool(cmf > 0.05) # LEBIH KETAT
         }
         return checks, float(c)
     except: return None, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🌍 V45.3 OMNI-APEX: SUPREME BULLETPROOF</h1><p style='margin:0; opacity:0.8;'>Robust Data Fetching | Budget Sniper | Alpha Leaders</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🌍 V45.4 OMNI-APEX: ALL-CAP ELITE</h1><p style='margin:0; opacity:0.8;'>Micro to Mega Caps | Strict Alpha Filtering | Budget Optimized</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -88,20 +94,21 @@ with st.sidebar:
     rrr = st.number_input("Min RRR Target", value=3.0)
     st.divider()
     bypass = st.toggle("🚨 Bypass Market Time", value=False)
-    st.caption("Klik ON untuk audit di luar jam bursa.")
 
 # --- 🚀 MAIN DASHBOARD ---
 ihsg_ret, is_bullish = get_market_context()
 max_price = cap / 100 
 
 if is_market_open or bypass:
-    st.subheader(f"📡 Affordable Alpha (Max: Rp {int(max_price)}/sh)")
+    st.subheader(f"📡 Elite Signals (All-Cap Universe | Max: Rp {int(max_price)}/sh)")
     try:
-        q = (Query().set_markets('indonesia').select('name','close','sector').where(
-            Column('market_cap_basic') >= 1e10, 
-            Column('close') <= max_price, 
-            Column('close') > Column('SMA200')
-        ).limit(10))
+        # SCANNER TANPA BATAS MARKET CAP
+        q = (Query().set_markets('indonesia').select('name','close','sector','volume','average_volume_120d')
+             .where(
+                 Column('close') <= max_price, 
+                 Column('close') > Column('SMA200'),
+                 Column('average_volume_120d') >= 1e5 # MINIMAL 100RB LEMBAR (STRICT LIQUIDITY)
+             ).limit(15))
         _, df_raw = q.get_scanner_data()
         
         cols = st.columns(2)
@@ -118,36 +125,39 @@ if is_market_open or bypass:
                             <div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{int(prc*(1-risk_p/100))}</p></div>
                             <div><p style='color:#9ca3af; font-size:11px;'>TARGET</p><p class='target-value' style='color:#10b981;'>{int(prc + (prc*0.05)*rrr)}</p></div>
                         </div>
+                        <div class='pyramid-panel'>
+                            <b style='color:#818cf8; font-size:12px;'>📐 PYRAMID PLAN:</b><br>
+                            Next Entry (+5%): <b>{int(prc*1.05)}</b> | Avg New: <b>{int((prc + prc*1.05)/2)}</b>
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
                 v_idx += 1
-    except: st.write("Sedang memindai bursa...")
+        if v_idx == 0: st.info("Tidak ada saham yang lolos kriteria Alpha yang sangat ketat malam ini.")
+    except: st.write("Scanning...")
 else:
-    st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass Market Time' di sidebar.")
+    st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass' di sidebar untuk analisa malam.")
 
-# --- 🛡️ TOOLS (THE FIX) ---
+# --- 🛡️ TOOLS ---
 st.divider()
 col_a, col_b = st.columns(2)
 with col_a:
     st.subheader("🔍 Audit Manual")
-    tid = st.text_input("Ticker Target (Contoh: DFAM):").upper()
+    tid = st.text_input("Ticker Target:").upper()
     if st.button("🚀 Run Tactical Audit"):
         if tid:
-            with st.spinner(f"Membedah {tid}..."):
+            with st.spinner(f"Interogasi {tid}..."):
                 checks, price_val = run_elite_audit(tid, ihsg_ret)
                 if checks:
                     st.write(f"### Vonis {tid}:")
                     for k, v in checks.items():
                         st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='pyramid-panel'><b>📐 Layout:</b> Entry {int(price_val)} | Pyramid {int(price_val*1.05)} | SL {int(price_val*(1-risk_p/100))}</div>", unsafe_allow_html=True)
                     if all(checks.values()): st.success("LONTARKAN PELURU 🚀")
-                    else: st.warning("TIARAP ⛔ (Beberapa poin tidak terpenuhi)")
-                else:
-                    st.error("Gagal menarik data. Server Yahoo sedang sibuk atau saham kurang likuid. Coba lagi dalam 1 menit.")
+                    else: st.warning("TIARAP ⛔")
+                else: st.error("Data tidak ditemukan atau IPO < 1 tahun.")
 
 with col_b:
     st.subheader("🛡️ Portfolio")
     pid = st.text_input("Ticker Portfo:").upper()
     if st.button("🛒 ADD"): st.success(f"{pid} Sent!")
 
-st.caption("V45.3 | Robust 2Y History | Unpacking Safety | Budget Sniper.")
+st.caption("V45.4 | All-Cap Universe | Strict Liquidity & RS Filter.")

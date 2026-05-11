@@ -10,7 +10,7 @@ import concurrent.futures
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V48.1 ULTIMATE PIPELINE", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V48.2 DUAL-AUDIT PIPELINE", layout="wide", page_icon="💎")
 
 # --- TEMA VISUAL SUPREME (100% DIPERTAHANKAN) ---
 st.markdown("""
@@ -57,7 +57,7 @@ def run_deep_audit(ticker, ihsg_ret):
         c = df['Close'].iloc[-1]
         v = df['Volume'].iloc[-1]
         
-        # 1. MTF & MINERVINI (Sisa filter yang tidak bisa di TV)
+        # 1. MTF & MINERVINI
         s150 = df['Close'].rolling(150).mean().iloc[-1]
         s200 = df['Close'].rolling(200).mean().iloc[-1]
         weekly_ma = df['Close'].rolling(30).mean().iloc[-1]
@@ -67,7 +67,7 @@ def run_deep_audit(ticker, ihsg_ret):
         rs_slope = rs_line.iloc[-1] > rs_line.rolling(20).mean().iloc[-1]
         s_ret = (c / (df['Close'].iloc[-126] if len(df)>126 else df['Close'].iloc[0])) - 1
         
-        # 3. VCP & VDU DETECTION
+        # 3. VCP & VDU
         atr = (df['High'] - df['Low']).rolling(10).mean()
         vcp = atr.iloc[-1] < atr.rolling(50).mean().iloc[-1]
         vdu = v < df['Volume'].rolling(20).mean().iloc[-1]
@@ -88,7 +88,7 @@ def run_deep_audit(ticker, ihsg_ret):
     except: return None, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🏆 V48.1 PRESTIGE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Engine: TV Pipeline + V8 Multi-Thread ⚡ | Max Speed & Precision</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🏆 V48.2 PRESTIGE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Engine: TV Pipeline + V8 Multi-Thread ⚡ | Dual-Audit Active</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -111,23 +111,23 @@ max_p = cap / 100
 if is_market_open or bypass:
     st.subheader(f"📡 {mode} Result (Market Cap > 500B)")
     try:
-        # ⚡ TAHAP 1: TRADINGVIEW BRUTAL PRE-FILTERING
+        # ⚡ TAHAP 1 AUTO-SCAN: TRADINGVIEW
         q = (Query().set_markets('indonesia').select('name','close','sector','average_volume_120d')
              .where(
                  Column('market_cap_basic') >= 5e11, 
                  Column('close') <= max_p, 
                  Column('close') > Column('SMA200'),
-                 Column('SMA50') > Column('SMA200'), # FILTER BARU: Pastikan Uptrend Kuat dari TV
+                 Column('SMA50') > Column('SMA200'), 
                  Column('average_volume_120d') >= 1e5
              ).limit(15))
         _, df_raw = q.get_scanner_data()
         
         valid_signals = []
         
-        # ⚡ TAHAP 2: YFINANCE V8 ENGINE (Hanya mengecek yang lolos Tahap 1)
+        # ⚡ TAHAP 2 AUTO-SCAN: YFINANCE V8 ENGINE
         if mode == "Turbo (Fast)":
             for _, row in df_raw.iterrows():
-                valid_signals.append((row, {"Turbo Mode": True}, row['close']))
+                valid_signals.append((row, {"Turbo Mode (TV Only)": True}, row['close']))
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
                 future_to_row = {executor.submit(run_deep_audit, row['name'], ihsg_ret): row for _, row in df_raw.iterrows()}
@@ -137,10 +137,8 @@ if is_market_open or bypass:
                         checks, prc = future.result()
                         if checks and all(checks.values()):
                             valid_signals.append((row, checks, prc))
-                    except:
-                        pass
+                    except: pass
         
-        # RENDER TAMPILAN
         if valid_signals:
             cols = st.columns(2)
             v_idx = 0
@@ -173,22 +171,48 @@ if is_market_open or bypass:
 else:
     st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass' di Sidebar.")
 
-# --- 🛡️ TOOLS ---
+# --- 🛡️ TOOLS (DUAL-AUDIT PIPELINE) ---
 st.divider()
 ca, cb = st.columns(2)
 with ca:
-    st.subheader("🔍 All-Cap Sniper Audit")
-    tid = st.text_input("Ticker Target:").upper()
-    if st.button("🚀 Run Champion Audit"):
-        with st.spinner("Membedah Target..."):
-            res, p_val = run_deep_audit(tid, ihsg_ret)
-            if res:
-                st.write(f"### Vonis {tid}:")
-                for k, v in res.items():
-                    st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
-                if all(res.values()): st.success("WORLD CHAMPION CONFIRMED 🚀")
-                st.markdown(f"<div class='pyramid-panel'><b>📐 Pyramid Plan:</b> Next {int(p_val*1.05)} | Risk-Free SL {int(p_val)}</div>", unsafe_allow_html=True)
-            else: st.error("Data tidak ditemukan atau server sibuk.")
+    st.subheader("🔍 All-Cap Dual Audit")
+    tid_input = st.text_input("Ticker Target (Contoh: DFAM):").upper()
+    tid = tid_input.replace(".JK", "") # Bersihkan input
+    
+    if st.button("🚀 Run Tactical Audit"):
+        if tid:
+            with st.spinner("Memproses Tahap 1 (TradingView)..."):
+                # ⚡ TAHAP 1 MANUAL AUDIT: TRADINGVIEW
+                q_tv = Query().set_markets('indonesia').select('close','SMA50','SMA200','average_volume_120d').where(Column('name') == tid)
+                _, df_tv = q_tv.get_scanner_data()
+                
+                if df_tv.empty:
+                    st.error(f"Saham {tid} tidak ditemukan di database.")
+                else:
+                    c, s50, s200, vol = df_tv.iloc[0]['close'], df_tv.iloc[0]['SMA50'], df_tv.iloc[0]['SMA200'], df_tv.iloc[0]['average_volume_120d']
+                    
+                    st.write("### ⚡ Pre-Check Lolos (TradingView)")
+                    c1, c2 = st.columns(2)
+                    c1.markdown(f"<span class='{'audit-pass' if c > s200 else 'audit-fail'}'>{'✅' if c > s200 else '❌'} Harga > SMA 200</span>", unsafe_allow_html=True)
+                    c2.markdown(f"<span class='{'audit-pass' if vol > 1e5 else 'audit-fail'}'>{'✅' if vol > 1e5 else '❌'} Likuiditas > 100k</span>", unsafe_allow_html=True)
+                    
+                    if mode == "Turbo (Fast)":
+                        st.success("Audit Selesai (Mode Turbo). Ganti ke mode Deep untuk bedah bandarmologi.")
+                        st.markdown(f"<div class='pyramid-panel'><b>📐 Pyramid Plan:</b> Entry {int(c)} | Next {int(c*1.05)} | SL {int(c*(1-risk/100))}</div>", unsafe_allow_html=True)
+                    else:
+                        # ⚡ TAHAP 2 MANUAL AUDIT: YFINANCE
+                        st.write("---")
+                        with st.spinner("Memproses Tahap 2 (YFinance Deep Dive)..."):
+                            res, p_val = run_deep_audit(tid, ihsg_ret)
+                            if res:
+                                st.write("### 🔬 Deep Dive (YFinance)")
+                                for k, v in res.items():
+                                    st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
+                                if all(res.values()) and c > s200: st.success("WORLD CHAMPION CONFIRMED 🚀")
+                                else: st.warning("BELUM LOLOS STANDAR JUARA ⛔")
+                                st.markdown(f"<div class='pyramid-panel'><b>📐 Pyramid Plan:</b> Entry {int(p_val)} | Next {int(p_val*1.05)} | SL {int(p_val*(1-risk/100))}</div>", unsafe_allow_html=True)
+                            else:
+                                st.error("⚠️ Data YFinance sedang gangguan/maintenance malam ini. Gunakan hasil Pre-Check TradingView di atas.")
 
 with cb:
     st.subheader("🛡️ Portfolio & Buy Manager")
@@ -197,4 +221,4 @@ with cb:
     if st.button("🛒 EKSEKUSI / ADD SIGNAL"): 
         st.success(f"Signal {pid} berhasil dikirim ke Telegram!")
 
-st.caption("V48.1 PRESTIGE | TradingView Pre-Filter + V8 Engine.")
+st.caption("V48.2 PRESTIGE | Dual-Pipeline (TV + YF) | Tampilan Supreme Aman 100%.")

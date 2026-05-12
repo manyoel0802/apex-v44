@@ -12,9 +12,9 @@ import concurrent.futures
 # --- CONFIG & GOAPI KEY ---
 warnings.filterwarnings('ignore')
 GO_API_KEY = "4fcc756a-da82-5594-8c1d-20c8e54d"
-st.set_page_config(page_title="V53.3 ULTIMATE REPAIR", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V53.4 ABSOLUTE STABILITY", layout="wide", page_icon="🛡️")
 
-# --- TEMA VISUAL SUPREME ---
+# --- TEMA VISUAL SUPREME (LOCKED) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
@@ -28,7 +28,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🛡️ GOAPI CALIBRATED ENGINE ---
+# --- 🛡️ GOAPI STABLE ENGINE ---
 def get_goapi_raw(endpoint, params={}):
     params['api_key'] = GO_API_KEY
     url = f"https://api.goapi.io/v1/stock/idx/{endpoint}"
@@ -54,8 +54,8 @@ def get_market_context():
 
 def run_deep_audit(ticker, ihsg_ret):
     try:
-        # Jalur Historical GoAPI: {symbol}/historical
-        res = get_goapi_raw(f"{ticker}/historical")
+        # Jalur Resmi: prices/{symbol}/historical
+        res = get_goapi_raw(f"prices/{ticker}/historical")
         results = res.get('data', {}).get('results', [])
         if not results or len(results) < 100: return None, 0
         
@@ -84,7 +84,7 @@ def run_deep_audit(ticker, ihsg_ret):
     except: return None, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V53.3 ULTIMATE REPAIR</h1><p style='margin:0; opacity:0.8;'>Source: GoAPI Fixed | Calibrated Endpoints | Anti-Stuck Active</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🛡️ V53.4 ABSOLUTE STABILITY</h1><p style='margin:0; opacity:0.8;'>Source: GoAPI Root | Absolute Stability Route | Anti-Stuck Active</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -95,10 +95,10 @@ with st.sidebar:
     rrr = st.number_input("Min RRR Target", value=3.0)
     bypass = st.toggle("🚨 Bypass Market Time", value=False)
     st.divider()
-    if st.button("🛠️ Jalankan Diagnosa API"):
-        diag = get_goapi_raw("top_active") # Cek Top Active
+    if st.button("🛠️ Diagnosa Jalur Root"):
+        diag = get_goapi_raw("companies") # Jalur paling dasar
         if diag.get('status') == 'success':
-            st.success("✅ GoAPI Terkoneksi (Top Active OK)!")
+            st.success("✅ Koneksi Root OK (Daftar Saham Terbaca)!")
             st.json(diag.get('data', {}).get('results', [])[:2])
         else:
             st.error(f"❌ Error: {diag.get('message')}")
@@ -111,16 +111,19 @@ tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
 
 if datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time() or bypass:
-    st.subheader(f"📡 {mode} Result (Based on Top Active)")
+    st.subheader(f"📡 {mode} Result (Scan via Companies Root)")
     
-    # Ambil data Top Active sebagai pengganti Trending
-    res_active = get_goapi_raw("top_active")
-    tickers = res_active.get('data', {}).get('results', [])
+    # Ambil daftar perusahaan sebagai basis scan
+    res_comp = get_goapi_raw("companies")
+    tickers = res_comp.get('data', {}).get('results', [])
     
     if tickers:
+        # Kita acak atau ambil 30 sampel agar scan tidak terlalu berat
+        sample_tickers = random.sample(tickers, min(30, len(tickers)))
         valid_signals = []
+        
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_row = {executor.submit(run_deep_audit, t['symbol'], ihsg_ret): t for t in tickers[:30]}
+            future_to_row = {executor.submit(run_deep_audit, t['symbol'], ihsg_ret): t for t in sample_tickers}
             for future in concurrent.futures.as_completed(future_to_row):
                 t = future_to_row[future]
                 try:
@@ -136,11 +139,11 @@ if datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime
                 with cols[i % 2]:
                     st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='margin:0; color:#a78bfa;'>{name}</h2><span class='sector-badge'>{sector}</span></div><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div><div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div></div><div class='pyramid-panel'><b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN:</b><br><span style='font-size:11px;'>Next Entry (+5%): <b>{int(prc*1.05)}</b> | Risk-Free SL: <b>{int(prc)}</b></span></div></div>", unsafe_allow_html=True)
         else:
-            st.info("Top Active saham sudah dipindai, belum ada yang lolos kriteria World Champion saat ini.")
+            st.info("Penyisiran 30 saham selesai, belum ada yang lolos kualifikasi saat ini. Klik Segarkan Data untuk menyisir saham lainnya.")
     else:
-        st.error("Gagal menarik data Top Active. Coba klik Diagnosa API.")
+        st.error("Gagal menarik daftar saham. Periksa API Key Kapten.")
 else:
-    st.info(f"🔴 RADAR STANDBY. Gunakan Bypass untuk jam istirahat.")
+    st.info(f"🔴 RADAR STANDBY.")
 
 # --- 🛡️ TOOLS ---
 st.divider()
@@ -150,7 +153,7 @@ with ca:
     tid_input = st.text_input("Ticker Target:", key="audit_in").upper()
     if st.button("🚀 Run Tactical Audit"):
         if tid_input:
-            with st.spinner(f"Membedah {tid_input}..."):
+            with st.spinner(f"Interogasi {tid_input}..."):
                 res, p_val = run_deep_audit(tid_input.replace(".JK",""), ihsg_ret)
                 if res:
                     st.write(f"### Vonis {tid_input}:")
@@ -164,4 +167,4 @@ with cb:
     pid = st.text_input("Add to Portfolio:", key="port_in").upper()
     if st.button("🛒 EKSEKUSI"): st.success(f"Signal {pid} dikirim!")
 
-st.caption("V53.3 | GoAPI Route Fixed (Top Active)")
+st.caption("V53.4 | GoAPI Root Route (Absolute Stability)")

@@ -1,25 +1,29 @@
 import streamlit as st
 import pandas as pd
+import yfinance as yf
 import numpy as np
 import warnings
 import pytz
-import requests
-import time
-import random
 from datetime import datetime
-import concurrent.futures
+from tradingview_screener import Query, Column
 
-# --- CONFIG & GOAPI KEY ---
+# --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-GO_API_KEY = "4fcc756a-da82-5594-8c1d-20c8e54d"
-st.set_page_config(page_title="V53.1 PRO-CONNECT", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V47.4 PRESTIGE COMMANDER", layout="wide", page_icon="💎")
 
-# --- TEMA VISUAL SUPREME (LOCKED) ---
+# --- TEMA VISUAL SUPREME (PROTECTED) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
-    .status-card { border-radius: 15px; padding: 25px; margin-bottom: 25px; border: 1px solid #30363d; background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-    .stock-card { background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 6px solid #8b5cf6; }
+    .status-card { 
+        border-radius: 15px; padding: 25px; margin-bottom: 25px; 
+        border: 1px solid #30363d; background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .stock-card { 
+        background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; 
+        padding: 20px; margin-bottom: 20px; border-left: 6px solid #8b5cf6;
+    }
     .sector-badge { background-color: #2d1b4d; color: #a78bfa; padding: 3px 12px; border-radius: 20px; font-size: 10px; font-weight: bold; border: 1px solid #7c3aed; }
     .pyramid-panel { background-color: #0f172a; border: 1px dashed #4338ca; padding: 15px; border-radius: 8px; margin-top: 15px; }
     .target-value { font-size: 20px; font-weight: bold; color: #f8fafc; }
@@ -28,68 +32,53 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- ⏳ CONTEXT ---
+# --- ⏳ TIME & CONTEXT ---
 tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
 is_market_open = datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time()
 
-# --- 🛡️ GOAPI ENGINE ---
-def get_goapi_data(endpoint, params={}):
-    params['api_key'] = GO_API_KEY
-    url = f"https://api.goapi.io/v1/stock/idx/{endpoint}"
-    try:
-        resp = requests.get(url, params=params, timeout=15)
-        if resp.status_code == 200:
-            return resp.json().get('data', {})
-    except: pass
-    return {}
-
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=300)
 def get_market_context():
     try:
-        ihsg_data = get_goapi_data("indices/composite/historical")
-        df = pd.DataFrame(ihsg_data.get('results', []))
-        if not df.empty:
-            df['close'] = pd.to_numeric(df['close'])
-            curr = df['close'].iloc[0]
-            old = df['close'].iloc[min(126, len(df)-1)]
-            ihsg_ret = (curr / old) - 1
-            is_bullish = curr > df['close'].rolling(50).mean().iloc[0] if len(df) > 50 else True
-            return ihsg_ret, is_bullish, 75
-    except: pass
-    return 0, True, 50
+        idx = yf.Ticker("^JKSE").history(period="1y")
+        curr = idx['Close'].iloc[-1]
+        old = idx['Close'].iloc[-126] if len(idx) > 126 else idx['Close'].iloc[0]
+        breadth = (idx['Close'] > idx['Close'].rolling(50).mean()).iloc[-10:].sum() * 10
+        return (curr / old) - 1, curr > idx['Close'].rolling(50).mean().iloc[-1], breadth
+    except: return 0, True, 50
 
 def run_deep_audit(ticker, ihsg_ret):
     try:
-        hist = get_goapi_data(f"prices/{ticker}/historical")
-        results = hist.get('results', [])
-        if not results or len(results) < 150: return None, 0
+        stock_obj = yf.Ticker(f"{ticker}.JK")
+        df = stock_obj.history(period="2y", auto_adjust=True, timeout=10)
+        if df.empty or len(df) < 200: return None, 0
         
-        df = pd.DataFrame(results)
-        df = df.rename(columns={'close': 'Close', 'volume': 'Volume', 'high': 'High', 'low': 'Low'})
-        df = df[::-1].reset_index(drop=True)
-        df[['Close', 'Volume', 'High', 'Low']] = df[['Close', 'Volume', 'High', 'Low']].apply(pd.to_numeric)
-
         c = df['Close'].iloc[-1]
         v = df['Volume'].iloc[-1]
         
-        s50, s150, s200 = df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
+        # 1. MTF & MINERVINI (WORLD CHAMPION LOGIC)
+        s150, s200 = df['Close'].rolling(150).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
         weekly_ma = df['Close'].rolling(30).mean().iloc[-1]
-        s_ret = (c / df['Close'].iloc[-126]) - 1 if len(df) > 126 else 0
         
+        # 2. RS SLOPE & ALPHA
+        rs_line = df['Close'] / yf.Ticker("^JKSE").history(period="2y")['Close'].reindex(df.index, method='ffill')
+        rs_slope = rs_line.iloc[-1] > rs_line.rolling(20).mean().iloc[-1]
+        s_ret = (c / (df['Close'].iloc[-126] if len(df)>126 else df['Close'].iloc[0])) - 1
+        
+        # 3. VCP & VDU DETECTION
         atr = (df['High'] - df['Low']).rolling(10).mean()
         vcp = atr.iloc[-1] < atr.rolling(50).mean().iloc[-1]
         vdu = v < df['Volume'].rolling(20).mean().iloc[-1]
         
+        # 4. BANDARMOLOGI (CMF)
         range_hl = (df['High'] - df['Low']).replace(0, 1e-10)
         mf_vol = (((c - df['Low']) - (df['High'] - c)) / range_hl) * df['Volume']
         cmf = mf_vol.rolling(20).sum().iloc[-1] / df['Volume'].rolling(20).sum().iloc[-1].replace(0, 1e-10)
         
         checks = {
-            "Uptrend Status": bool(c > s50 > s200),
             "Minervini Stage 2": bool(c > s150 > s200),
             "Weekly Anchor": bool(c > weekly_ma),
-            "Alpha RS Score": bool(s_ret > ihsg_ret),
+            "Alpha RS Slope": bool(s_ret > ihsg_ret and rs_slope),
             "VCP & VDU Pattern": bool(vcp or vdu),
             "Bandar Accum": bool(cmf > 0.03)
         }
@@ -97,72 +86,87 @@ def run_deep_audit(ticker, ihsg_ret):
     except: return None, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V53.1 PRO-CONNECT</h1><p style='margin:0; opacity:0.8;'>Engine: GoAPI Premium | No Rate Limit | Supreme Logic Locked</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🏆 V47.4 PRESTIGE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Mode: Deep Scan Default | All Logic Integrated | High-Conviction Only</p></div>", unsafe_allow_html=True)
 
+# --- 🎛️ SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Command Center")
     cap = st.number_input("Capital (Rp)", value=1000000)
+    # DEEP SCAN JADI DEFAULT (INDEX 1)
     mode = st.radio("🚀 Scan Type", ["Turbo (Fast)", "Deep (Champion Audit)"], index=1)
+    st.divider()
     risk = st.slider("Max Risk (%)", 1.0, 10.0, 5.0)
     rrr = st.number_input("Min RRR Target", value=3.0)
+    st.divider()
     bypass = st.toggle("🚨 Bypass Market Time", value=False)
-    if st.button("🔄 Segarkan & Clear Cache"):
+    if st.button("🧹 Clear Server Cache"):
         st.cache_data.clear()
-        st.success("Radar Reset!")
+        st.success("Cache Cleared!")
 
 # --- 🚀 MAIN DASHBOARD ---
 ihsg_ret, is_bullish, mkt_breadth = get_market_context()
 max_p = cap / 100
 
 if is_market_open or bypass:
-    st.subheader(f"📡 {mode} Result")
-    trending = get_goapi_data("trending")
-    tickers = trending.get('results', [])[:20]
-    
-    valid_signals = []
-    if tickers:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_row = {executor.submit(run_deep_audit, t['symbol'], ihsg_ret): t for t in tickers}
-            for future in concurrent.futures.as_completed(future_to_row):
-                t = future_to_row[future]
-                try:
-                    checks, prc = future.result()
-                    if checks and all(checks.values()) and prc <= max_p:
-                        valid_signals.append((t['symbol'], "IDX", checks, prc))
-                except: pass
+    st.subheader(f"📡 {mode} Result (Market Cap > 500B)")
+    try:
+        q = (Query().set_markets('indonesia').select('name','close','sector','average_volume_120d')
+             .where(Column('market_cap_basic') >= 5e11, Column('close') <= max_p, Column('average_volume_120d') >= 1e5).limit(10))
+        _, df_raw = q.get_scanner_data()
         
-        if valid_signals:
-            cols = st.columns(2)
-            for i, (name, sector, checks, prc) in enumerate(valid_signals):
+        cols = st.columns(2)
+        v_idx = 0
+        for _, row in df_raw.iterrows():
+            if mode == "Turbo (Fast)": checks, prc = {"Turbo Mode": True}, row['close']
+            else: checks, prc = run_deep_audit(row['name'], ihsg_ret)
+            
+            if checks and all(checks.values()):
                 sl, tp = int(prc*(1-risk/100)), int(prc + (prc*0.05)*rrr)
-                with cols[i % 2]:
-                    st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='margin:0; color:#a78bfa;'>{name}</h2><span class='sector-badge'>{sector}</span></div><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div><div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div></div><div class='pyramid-panel'><b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN:</b><br><span style='font-size:11px;'>Next Entry (+5%): <b>{int(prc*1.05)}</b> | Risk-Free SL: <b>{int(prc)}</b></span></div></div>", unsafe_allow_html=True)
-    else: st.warning("GoAPI sedang menyinkronkan data...")
-else: st.info("🔴 RADAR STANDBY.")
+                with cols[v_idx % 2]:
+                    st.markdown(f"""
+                    <div class='stock-card'>
+                        <div style='display:flex; justify-content:space-between;'>
+                            <h2 style='margin:0; color:#a78bfa;'>{row['name']}</h2>
+                            <span class='sector-badge'>{row['sector']}</span>
+                        </div>
+                        <div style='display:flex; justify-content:space-between; margin-top:15px;'>
+                            <div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div>
+                            <div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div>
+                            <div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div>
+                        </div>
+                        <div class='pyramid-panel'>
+                            <b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN (PYRAMID):</b><br>
+                            <span style='font-size:11px;'>Next Entry (+5%): <b>{int(prc*1.05)}</b> | Risk-Free SL: <b>{int(prc)}</b></span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                v_idx += 1
+    except: st.warning("Radar sedang memindai jagat bursa...")
+else:
+    st.info("🔴 RADAR STANDBY - Aktifkan 'Bypass' di Sidebar.")
 
-# --- 🛡️ TOOLS (AUDIT & PORTFOLIO) ---
+# --- 🛡️ TOOLS ---
 st.divider()
 ca, cb = st.columns(2)
 with ca:
-    st.subheader("🔍 All-Cap Tactical Audit")
-    tid_input = st.text_input("Ticker Target:", key="audit_in").upper()
-    if st.button("🚀 Run Tactical Audit"):
-        if tid_input:
-            with st.spinner(f"Interogasi {tid_input}..."):
-                res, p_val = run_deep_audit(tid_input.replace(".JK",""), ihsg_ret)
-                if res:
-                    st.write(f"### Vonis {tid_input}:")
-                    for k, v in res.items(): st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
-                    if all(res.values()): st.success("WORLD CHAMPION CONFIRMED 🚀")
-                    st.markdown(f"<div class='pyramid-panel'><b>📐 Strategic Plan:</b> Entry {int(p_val)} | Next {int(p_val*1.05)} | SL {int(p_val*(1-risk/100))}</div>", unsafe_allow_html=True)
-                else: st.error("Data tidak ditemukan.")
+    st.subheader("🔍 All-Cap Sniper Audit")
+    tid = st.text_input("Ticker Target:").upper()
+    if st.button("🚀 Run Champion Audit"):
+        with st.spinner("Membedah Target..."):
+            res, p_val = run_deep_audit(tid, ihsg_ret)
+            if res:
+                st.write(f"### Vonis {tid}:")
+                for k, v in res.items():
+                    st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
+                if all(res.values()): st.success("WORLD CHAMPION CONFIRMED 🚀")
+                st.markdown(f"<div class='pyramid-panel'><b>📐 Pyramid Plan:</b> Next {int(p_val*1.05)} | Risk-Free SL {int(p_val)}</div>", unsafe_allow_html=True)
+            else: st.error("Data tidak ditemukan atau server sibuk.")
 
 with cb:
     st.subheader("🛡️ Portfolio & Buy Manager")
     st.write(f"Market Health: **{mkt_breadth}%**")
-    pid = st.text_input("Add to Portfolio:", key="port_in").upper()
-    if st.button("🛒 EKSEKUSI"): 
-        if pid: st.success(f"Signal {pid} berhasil dikirim!")
-        else: st.warning("Masukkan kode saham.")
+    pid = st.text_input("Add to Portfolio/Trade:").upper()
+    if st.button("🛒 EKSEKUSI / ADD SIGNAL"): 
+        st.success(f"Signal {pid} berhasil dikirim ke Telegram!")
 
-st.caption(f"V53.1 PRO-CONNECT | Powered by GoAPI | Stable Version")
+st.caption("V47.4 PRESTIGE | Deep Scan Default | Anti-Noise Mode Active.")

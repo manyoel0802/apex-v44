@@ -5,13 +5,14 @@ import warnings
 import pytz
 import requests
 import time
+import random
 from datetime import datetime
 import concurrent.futures
 
 # --- CONFIG & GOAPI KEY ---
 warnings.filterwarnings('ignore')
 GO_API_KEY = "4fcc756a-da82-5594-8c1d-20c8e54d"
-st.set_page_config(page_title="V53.2 DEBUG PRO", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V53.3 ULTIMATE REPAIR", layout="wide", page_icon="💎")
 
 # --- TEMA VISUAL SUPREME ---
 st.markdown("""
@@ -27,7 +28,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🛡️ GOAPI DIAGNOSTIC ENGINE ---
+# --- 🛡️ GOAPI CALIBRATED ENGINE ---
 def get_goapi_raw(endpoint, params={}):
     params['api_key'] = GO_API_KEY
     url = f"https://api.goapi.io/v1/stock/idx/{endpoint}"
@@ -53,7 +54,8 @@ def get_market_context():
 
 def run_deep_audit(ticker, ihsg_ret):
     try:
-        res = get_goapi_raw(f"prices/{ticker}/historical")
+        # Jalur Historical GoAPI: {symbol}/historical
+        res = get_goapi_raw(f"{ticker}/historical")
         results = res.get('data', {}).get('results', [])
         if not results or len(results) < 100: return None, 0
         
@@ -82,7 +84,7 @@ def run_deep_audit(ticker, ihsg_ret):
     except: return None, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V53.2 PRO-CONNECT</h1><p style='margin:0; opacity:0.8;'>Mode Premium GoAPI | Diagnostic Console Active</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V53.3 ULTIMATE REPAIR</h1><p style='margin:0; opacity:0.8;'>Source: GoAPI Fixed | Calibrated Endpoints | Anti-Stuck Active</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -92,13 +94,12 @@ with st.sidebar:
     risk = st.slider("Max Risk (%)", 1.0, 10.0, 5.0)
     rrr = st.number_input("Min RRR Target", value=3.0)
     bypass = st.toggle("🚨 Bypass Market Time", value=False)
-    
     st.divider()
     if st.button("🛠️ Jalankan Diagnosa API"):
-        diag = get_goapi_raw("trending")
+        diag = get_goapi_raw("top_active") # Cek Top Active
         if diag.get('status') == 'success':
-            st.success("✅ GoAPI Terkoneksi!")
-            st.json(diag.get('data', {}).get('results', [])[:3])
+            st.success("✅ GoAPI Terkoneksi (Top Active OK)!")
+            st.json(diag.get('data', {}).get('results', [])[:2])
         else:
             st.error(f"❌ Error: {diag.get('message')}")
 
@@ -110,15 +111,14 @@ tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
 
 if datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time() or bypass:
-    st.subheader(f"📡 {mode} Result")
+    st.subheader(f"📡 {mode} Result (Based on Top Active)")
     
-    # Ambil data Trending
-    res_trending = get_goapi_raw("trending")
-    tickers = res_trending.get('data', {}).get('results', [])
+    # Ambil data Top Active sebagai pengganti Trending
+    res_active = get_goapi_raw("top_active")
+    tickers = res_active.get('data', {}).get('results', [])
     
     if tickers:
         valid_signals = []
-        # Filter Budget & Scan
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_row = {executor.submit(run_deep_audit, t['symbol'], ihsg_ret): t for t in tickers[:30]}
             for future in concurrent.futures.as_completed(future_to_row):
@@ -136,11 +136,11 @@ if datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime
                 with cols[i % 2]:
                     st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='margin:0; color:#a78bfa;'>{name}</h2><span class='sector-badge'>{sector}</span></div><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div><div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div></div><div class='pyramid-panel'><b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN:</b><br><span style='font-size:11px;'>Next Entry (+5%): <b>{int(prc*1.05)}</b> | Risk-Free SL: <b>{int(prc)}</b></span></div></div>", unsafe_allow_html=True)
         else:
-            st.info("Radar aktif, namun belum ada saham trending yang lolos kualifikasi Minervini saat ini.")
+            st.info("Top Active saham sudah dipindai, belum ada yang lolos kriteria World Champion saat ini.")
     else:
-        st.error("Gagal menarik data trending. Klik 'Jalankan Diagnosa API' di sidebar untuk cek koneksi.")
+        st.error("Gagal menarik data Top Active. Coba klik Diagnosa API.")
 else:
-    st.info(f"🔴 RADAR STANDBY (Jam Server: {now.strftime('%H:%M')} WIB). Aktifkan Bypass untuk melihat data terakhir.")
+    st.info(f"🔴 RADAR STANDBY. Gunakan Bypass untuk jam istirahat.")
 
 # --- 🛡️ TOOLS ---
 st.divider()
@@ -150,13 +150,13 @@ with ca:
     tid_input = st.text_input("Ticker Target:", key="audit_in").upper()
     if st.button("🚀 Run Tactical Audit"):
         if tid_input:
-            with st.spinner(f"Interogasi {tid_input}..."):
-                res, p_val = run_deep_audit(tid_input, ihsg_ret)
+            with st.spinner(f"Membedah {tid_input}..."):
+                res, p_val = run_deep_audit(tid_input.replace(".JK",""), ihsg_ret)
                 if res:
                     st.write(f"### Vonis {tid_input}:")
                     for k, v in res.items(): st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
                     st.markdown(f"<div class='pyramid-panel'><b>📐 Strategic Plan:</b> Entry {int(p_val)} | Next {int(p_val*1.05)} | SL {int(p_val*(1-risk/100))}</div>", unsafe_allow_html=True)
-                else: st.error("Data tidak ditemukan atau limit tercapai.")
+                else: st.error("Data tidak ditemukan.")
 
 with cb:
     st.subheader("🛡️ Portfolio & Buy Manager")
@@ -164,4 +164,4 @@ with cb:
     pid = st.text_input("Add to Portfolio:", key="port_in").upper()
     if st.button("🛒 EKSEKUSI"): st.success(f"Signal {pid} dikirim!")
 
-st.caption("V53.2 | Stability Checkpoint")
+st.caption("V53.3 | GoAPI Route Fixed (Top Active)")

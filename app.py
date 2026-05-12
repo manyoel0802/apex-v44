@@ -9,22 +9,26 @@ from streamlit_autorefresh import st_autorefresh
 
 # --- ⚙️ CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V84.5 SUPREME BYPASS", layout="wide", page_icon="🎯")
+st.set_page_config(
+    page_title="V84.0 GHOST-REMOTE", 
+    layout="wide", 
+    page_icon="📡",
+    initial_sidebar_state="expanded"
+)
 
 # --- 🛰️ TELEGRAM SECRET COMMANDER ---
 try:
     TELEGRAM_TOKEN = st.secrets["TELEGRAM_TOKEN"]
     CHAT_ID = st.secrets["CHAT_ID"]
 except:
-    st.error("⚠️ SECRETS NOT FOUND! Harap isi file .streamlit/secrets.toml di Termux.")
+    st.sidebar.error("❌ SECRETS.TOML TIDAK DITEMUKAN")
     TELEGRAM_TOKEN = None
     CHAT_ID = None
 
 # --- 🕵️ SUPREME INFILTRATOR HEADERS ---
 def get_stealth_headers():
     u_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     ]
     return {"User-Agent": random.choice(u_agents), "Referer": "https://finance.yahoo.com/"}
 
@@ -36,11 +40,10 @@ def send_telegram_msg(msg):
             requests.post(url, json=payload, timeout=5)
         except: pass
 
-# --- 🛡️ THE GHOST AUDIT ENGINE (MARKET BYPASS VERSION) ---
+# --- 🛡️ THE GHOST AUDIT ENGINE ---
 def run_ghost_audit(ticker):
     clean_ticker = ticker.strip().upper().replace(".JK", "")
     try:
-        # BYPASS: Menggunakan Query2 untuk menembus restriksi jam malam
         url = f"https://query2.finance.yahoo.com/v8/finance/chart/{clean_ticker}.JK?interval=1d&range=6mo"
         resp = requests.get(url, headers=get_stealth_headers(), timeout=10)
         res = resp.json()['chart']['result'][0]
@@ -66,72 +69,86 @@ def run_ghost_audit(ticker):
     except: pass
     return None, 0, 0, 0
 
-# --- 🎨 SUPREME VISUAL THEME (ELITE DARK) ---
+# --- 🎨 SUPREME VISUAL THEME (V84.0 ORIGINAL) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
-    .status-card { border-radius: 15px; padding: 30px; margin-bottom: 25px; border: 1px solid #30363d; background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%); box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
-    .elite-card { background-color: #161b22; border: 1px solid #10b981; border-radius: 12px; padding: 20px; margin-bottom: 15px; border-left: 8px solid #10b981; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2); }
-    .probability-badge { background: #064e3b; color: #34d399; padding: 6px 15px; border-radius: 8px; font-weight: bold; font-size: 18px; border: 1px solid #059669; }
+    [data-testid="stSidebar"] { background-color: #020617; border-right: 1px solid #30363d; }
+    .status-card { border-radius: 15px; padding: 25px; margin-bottom: 25px; border: 1px solid #30363d; background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .elite-card { background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-bottom: 15px; border-left: 6px solid #8b5cf6; }
+    .probability-badge { background: #1e3a8a; color: #60a5fa; padding: 5px 12px; border-radius: 8px; font-weight: bold; font-size: 16px; border: 1px solid #3b82f6; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🛰️ HEARTBEAT ---
+# --- 🕒 TIME & AUTO-REFRESH ---
 tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
-st_autorefresh(interval=15 * 60 * 1000, key="bypass_pulse")
+st_autorefresh(interval=15 * 60 * 1000, key="v84_original_pulse")
 
-# --- 🛰️ HEADER ---
+# --- 🗄️ SIDEBAR (V84.0 STYLE) ---
+with st.sidebar:
+    st.write("Deploy")
+    st.title("V84.0 GHOST-REMOTE")
+    st.divider()
+    st.subheader("System Status")
+    st.write(f"Waktu: {now.strftime('%H:%M:%S')} WIB")
+    st.info("Bypass Market: ACTIVE")
+    if st.button("🔄 Reboot System"):
+        st.cache_data.clear()
+        st.rerun()
+
+# --- 🛰️ HEADER (V84.0 STYLE) ---
 st.markdown(f"""
     <div class='status-card'>
-        <h1 style='margin:0; font-size: 36px; color:#ddd6fe;'>💎 GHOST-SUPREME V84.5</h1>
-        <p style='margin:0; opacity:0.8;'>Auto-Sniper: 80% Min | Market Bypass Active 🕵️</p>
-        <div style='margin-top:20px;'><span class='probability-badge'>BYPASS STATUS: 🔵 PENETRATING</span></div>
+        <h1 style='margin:0; font-size: 32px; color:#ddd6fe;'>💎 V84.0 GHOST-REMOTE</h1>
+        <p style='margin:0; opacity:0.8;'>Auto-Pulse: 15m | Remote Sniper Active | Win-Rate 80%+ Guard 🕵️</p>
     </div>
     """, unsafe_allow_html=True)
 
-# --- 🚀 AUTOMATIC RADAR DISCOVERY (BYPASS MODE) ---
-st.subheader("📡 Elite Radar Discovery (Auto-Send Active)")
+# --- 🚀 RADAR DISCOVERY (80-100% ONLY) ---
+st.markdown("### 📡 Radar Discovery (Auto-Scan Mode)")
 
-with st.spinner("Menembus Lockdown Market..."):
+with st.spinner("Mencari emiten dengan lonjakan volume..."):
     try:
-        # BYPASS SCANNER: Menarik 50 saham teraktif untuk di-audit manual oleh sistem
         url_scan = "https://scanner.tradingview.com/indonesia/scan"
         payload = {
             "filter": [{"left": "change", "operation": "greater", "right": 1.0}],
-            "columns": ["name"], "sort": {"sortBy": "change", "sortOrder": "desc"}, "range": [0, 50]
+            "columns": ["name"], "sort": {"sortBy": "change", "sortOrder": "desc"}, "range": [0, 40]
         }
         resp = requests.post(url_scan, json=payload, headers=get_stealth_headers(), timeout=10)
         candidates = resp.json()['data']
         
         found_elite = False
         if candidates:
-            # Sistem melakukan audit satu per satu secara senyap
             for s in candidates:
                 ticker = s['d'][0]
                 res, p, sl, prob = run_ghost_audit(ticker)
                 
-                # FILTER ELIT: 80% - 100%
+                # FILTER KETAT 80-100%
                 if prob >= 80:
                     found_elite = True
                     st.markdown(f"""
                     <div class='elite-card'>
                         <div style='display:flex; justify-content:space-between; align-items:center;'>
-                            <h2 style='color:#34d399; margin:0;'>🎯 {ticker}</h2>
-                            <span class='probability-badge'>{prob}% PROB</span>
+                            <h2 style='color:#a78bfa; margin:0;'>🎯 {ticker}</h2>
+                            <span class='probability-badge'>{prob}%</span>
                         </div>
-                        <p style='margin-top:10px; font-size:18px;'>Price: <b>Rp {int(p)}</b> | SL: <b style='color:#ef4444;'>Rp {sl}</b> | TP: <b>Rp {int(p*1.15)}</b></p>
+                        <p style='margin-top:10px; font-size:18px;'>Price: <b>Rp {int(p)}</b> | SL: <b style='color:#ef4444;'>Rp {sl}</b></p>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # OTOMATIS KIRIM TELEGRAM
-                    msg = f"🚀 *SUPREME SIGNAL DETECTED*\n\nTicker: {ticker}\nProbabilitas: {prob}%\nPrice: Rp {int(p)}\nStop Loss: Rp {sl}\nStatus: *BYPASS AUDIT SUCCESS*"
+                    # AUTO-SEND TELEGRAM
+                    msg = f"🚀 *SUPREME SIGNAL*\nTicker: {ticker}\nProb: {prob}%\nPrice: Rp {int(p)}\nSL: {sl}"
                     send_telegram_msg(msg)
 
             if not found_elite:
-                st.info("Radar aktif, namun belum ada saham yang lolos kriteria elit 80-100% saat ini.")
-        else: st.warning("Mencari celah data bursa...")
-    except: st.error("⚠️ Infiltrasi Gagal. Server bursa sedang offline total.")
+                st.info("Mencari emiten dengan lonjakan volume...")
+        else: st.warning("Menunggu data bursa...")
+    except: st.error("⚠️ Koneksi Radar Terganggu.")
 
+# --- 🔍 TACTICAL AUDIT (V84.0 STYLE) ---
 st.divider()
-st.caption(f"Last Pulse: {now.strftime('%H:%M:%S')} WIB | Bypass Mode: Enabled | V84.5 Supreme")
+st.markdown("### 🔍 All-Cap Tactical Audit")
+target = st.text_input("Sniper Target:", value="CUAN").upper()
+
+st.caption("V84.0 | Supreme Original Restoration")

@@ -9,9 +9,9 @@ from streamlit_autorefresh import st_autorefresh
 
 # --- ⚙️ CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V84.2 GHOST-SUPREME", layout="wide", page_icon="🎯")
+st.set_page_config(page_title="V84.3 GHOST-SUPREME ELITE", layout="wide", page_icon="🎯")
 
-# --- 🛰️ TELEGRAM SECRET COMMANDER (AMBIL DARI SECRETS.TOML) ---
+# --- 🛰️ TELEGRAM SECRET COMMANDER ---
 try:
     TELEGRAM_TOKEN = st.secrets["TELEGRAM_TOKEN"]
     CHAT_ID = st.secrets["CHAT_ID"]
@@ -69,9 +69,9 @@ def run_ghost_audit(ticker):
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
-    .status-card { border-radius: 15px; padding: 30px; margin-bottom: 25px; border: 1px solid #30363d; background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%); box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
-    .stock-card { background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 6px solid #8b5cf6; }
-    .probability-badge { background: #1e3a8a; color: #60a5fa; padding: 8px 15px; border-radius: 8px; font-weight: bold; font-size: 18px; border: 1px solid #3b82f6; }
+    .status-card { border-radius: 15px; padding: 30px; margin-bottom: 25px; border: 1px solid #30363d; background: linear-gradient(135deg, #064e3b 0%, #1e1b4b 100%); box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; }
+    .stock-card { background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 6px solid #10b981; }
+    .probability-badge { background: #064e3b; color: #34d399; padding: 8px 15px; border-radius: 8px; font-weight: bold; font-size: 18px; border: 1px solid #059669; }
     .audit-pass { color: #10b981; font-weight: bold; }
     .audit-fail { color: #ef4444; font-weight: bold; }
     </style>
@@ -83,14 +83,14 @@ now = datetime.now(tz_wib)
 is_open = (0 <= now.weekday() <= 4) and (datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time())
 
 if is_open:
-    st_autorefresh(interval=15 * 60 * 1000, key="supreme_pulse")
+    st_autorefresh(interval=15 * 60 * 1000, key="supreme_pulse_v843")
 
 # --- 🛰️ HEADER ---
 st.markdown(f"""
     <div class='status-card'>
-        <h1 style='margin:0; font-size: 38px; color:#ddd6fe;'>💎 GHOST-SUPREME V84.2</h1>
-        <p style='margin:0; opacity:0.8;'>Secured Secret Vault | Supreme Edition | Telegram Sniper 🕵️</p>
-        <div style='margin-top:20px;'><span class='probability-badge'>RADAR: {"🟢 ONLINE" if is_open else "🟡 STANDBY"}</span></div>
+        <h1 style='margin:0; font-size: 38px; color:#d1fae5;'>💎 GHOST-SUPREME V84.3</h1>
+        <p style='margin:0; opacity:0.8;'>Elite Filter Mode: 80% - 100% Probability Only 🕵️</p>
+        <div style='margin-top:20px;'><span class='probability-badge'>SNIPER: {"🟢 READY" if is_open else "🟡 STANDBY"}</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -114,42 +114,55 @@ try:
                 if st.button(f"🎯 {name}\n{change:.2f}%", key=f"btn_{name}"):
                     st.session_state['manual_target'] = name
     else: st.info("Radar standby mencari lonjakan volume...")
-except: st.error("⚠️ Koneksi Radar Terganggu. Silakan gunakan Audit Manual.")
+except: st.error("⚠️ Koneksi Radar Terganggu.")
 
 # --- 🛡️ TACTICAL SNIPER AUDIT ---
 st.divider()
 ca, cb = st.columns([2, 1])
 with ca:
-    st.subheader("🔍 Tactical Audit (Secured Path)")
+    st.subheader("🔍 Tactical Audit (Elite Filtering)")
     target = st.text_input("Sniper Target:", value=st.session_state.get('manual_target', "")).upper()
     if st.button("🚀 EXECUTE SNIPER"):
         if target:
             with st.spinner(f"Mengaudit {target}..."):
                 res, p, sl, prob = run_ghost_audit(target)
                 if res:
-                    st.markdown(f"""
-                    <div class='stock-card'>
-                        <div style='display:flex; justify-content:space-between;'>
-                            <h2 style='color:#a78bfa;'>{target}</h2>
-                            <span class='probability-badge'>{prob}% PROBABILITY</span>
+                    # LOGIKA FILTER 80-100%
+                    if prob >= 80:
+                        st.balloons()
+                        st.markdown(f"""
+                        <div class='stock-card' style='border-left: 6px solid #10b981;'>
+                            <div style='display:flex; justify-content:space-between;'>
+                                <h2 style='color:#34d399;'>{target} [PASSED ELITE AUDIT]</h2>
+                                <span class='probability-badge'>{prob}%</span>
+                            </div>
+                            <p style='font-size:18px;'>Price: <b>Rp {int(p)}</b> | SL: <b>Rp {sl}</b></p>
                         </div>
-                        <p style='font-size:18px;'>Price: <b>Rp {int(p)}</b> | Stop Loss: <b>Rp {sl}</b></p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
+                        
+                        # KIRIM KE TELEGRAM HANYA JIKA PROB >= 80
+                        msg = f"🎯 *SUPREME SIGNAL DETECTED*\n\nTicker: {target}\nProbabilitas: {prob}%\nPrice: Rp {int(p)}\nStop Loss: Rp {sl}\nStatus: *HIGH POTENTIAL ARA*"
+                        send_telegram_msg(msg)
+                        st.success("Sinyal ELIT terkirim ke Telegram!")
+                    else:
+                        st.warning(f"Sinyal Lemah ({prob}%). Tidak dikirim ke Telegram.")
+                        st.markdown(f"""
+                        <div class='stock-card' style='border-left: 6px solid #ef4444; opacity: 0.6;'>
+                            <h2 style='color:#ef4444;'>{target} [LOW PROBABILITY]</h2>
+                            <p>Probabilitas: {prob}% (Di bawah standar 80%)</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
                     for k, v in res.items():
                         st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
-                    
-                    if prob >= 80: 
-                        send_telegram_msg(f"✅ *SNIPER SIGNAL*\nTicker: {target}\nProb: {prob}%\nPrice: {int(p)}\nSL: {sl}")
-                        st.success("Sinyal Terkirim ke Telegram!")
-                else: st.error("❌ GAGAL MENGAMBIL DATA. IP Terblokir sementara.")
+                else: st.error("❌ GAGAL MENGAMBIL DATA.")
 
 with cb:
-    st.subheader("⚙️ System Security")
-    st.write(f"🔐 Telegram Token: {'Set' if TELEGRAM_TOKEN else 'Not Set'}")
-    st.write(f"🔐 Chat ID: {'Set' if CHAT_ID else 'Not Set'}")
+    st.subheader("⚙️ Sniper Command")
+    st.write(f"📊 Filter: **80% - 100% Only**")
+    st.write(f"🕒 Time: {now.strftime('%H:%M')} WIB")
     if st.button("🔄 REBOOT"):
         st.cache_data.clear()
-        st.success("Sistem Dibersihkan!")
+        st.success("Sistem Reboot!")
 
-st.caption("V84.2 | Secret Vault Supreme Edition | Security First")
+st.caption("V84.3 | Elite Filter Edition | 80-100% Probability Only")

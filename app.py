@@ -13,19 +13,27 @@ import concurrent.futures
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V58.0 ELITE SENSOR", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V59.0 GHOST-COMMANDER", layout="wide", page_icon="💎")
 
-# --- 🕵️ STEALTH HEADERS ---
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-]
-
+# --- 🕵️ ULTRA-STEALTH SESSIONS ---
 @st.cache_resource
-def get_stealth_session():
+def get_hardened_session():
     session = requests.Session()
-    session.headers.update({'User-Agent': random.choice(USER_AGENTS)})
+    # Rotasi User-Agent yang lebih modern & beragam
+    ua = random.choice([
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Version/123.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
+    ])
+    session.headers.update({
+        'User-Agent': ua,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    })
     return session
 
 # --- TEMA VISUAL SUPREME (LOCKED) ---
@@ -46,14 +54,12 @@ st.markdown("""
 # --- ⏳ CONTEXT & JADWAL ---
 tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
-is_weekday = 0 <= now.weekday() <= 4
-is_market_hours = datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time()
-is_market_active = is_weekday and is_market_hours
+is_market_active = (0 <= now.weekday() <= 4) and (datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time())
 
 @st.cache_data(ttl=300)
 def get_market_context():
     try:
-        session = get_stealth_session()
+        session = get_hardened_session()
         idx = yf.Ticker("^JKSE", session=session).history(period="1y")
         if idx.empty: return 0, True, 50
         curr = idx['Close'].iloc[-1]
@@ -61,66 +67,55 @@ def get_market_context():
         return (curr / old) - 1, curr > idx['Close'].rolling(50).mean().iloc[-1], 90
     except: return 0, True, 50
 
-@st.cache_data(ttl=600)
-def get_sector_momentum():
-    try:
-        q = (Query().set_markets('indonesia').select('sector','change').where(Column('market_cap_basic') > 1e11).limit(100))
-        _, df = q.get_scanner_data()
-        return df.groupby('sector')['change'].mean().sort_values(ascending=False).head(3).index.tolist()
-    except: return []
-
 def calculate_atr(df, window=14):
     high_low = df['High'] - df['Low']
     high_close = np.abs(df['High'] - df['Close'].shift())
     low_close = np.abs(df['Low'] - df['Close'].shift())
     ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    true_range = np.max(ranges, axis=1)
-    return true_range.rolling(window).mean()
+    return np.max(ranges, axis=1).rolling(window).mean()
 
-# --- 🛡️ CORE AUDIT ENGINE (HARDENED) ---
-def run_deep_audit(ticker, sector="N/A", ihsg_ret=0, top_sectors=[], mode="Standard"):
-    session = get_stealth_session()
+# --- 🛡️ CORE AUDIT ENGINE (GHOST MODE) ---
+def run_deep_audit(ticker, sector="N/A", ihsg_ret=0, top_sectors=[]):
+    session = get_hardened_session()
     clean_ticker = ticker.strip().upper().replace(".JK", "")
     
-    try:
-        # Penambahan Micro-Delay agar tidak terdeteksi bot
-        time.sleep(random.uniform(0.3, 0.6))
-        stock_obj = yf.Ticker(f"{clean_ticker}.JK", session=session)
-        df = stock_obj.history(period="1y", auto_adjust=True)
-        
-        # Penanganan jika yFinance mengembalikan Multi-Index
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
+    # TRIPLE RETRY STRATEGY
+    for attempt in range(3):
+        try:
+            time.sleep(random.uniform(0.5, 1.2)) # Lebih lambat = Lebih aman
+            stock_obj = yf.Ticker(f"{clean_ticker}.JK", session=session)
+            df = stock_obj.history(period="1y", auto_adjust=True)
             
-        if not df.empty and len(df) > 20:
-            c = float(df['Close'].iloc[-1])
-            atr = float(calculate_atr(df).iloc[-1])
-            dynamic_sl = int(c - (2 * atr))
+            # Smart Data Flattening
+            if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
             
-            is_leader = sector in top_sectors if sector != "N/A" else False
-            s50 = df['Close'].rolling(50).mean().iloc[-1]
-            
-            typical_price = (df['High'] + df['Low'] + df['Close']) / 3
-            raw_money_flow = typical_price * df['Volume']
-            mfi = 50
-            if len(df) > 14:
-                pos_flow = raw_money_flow.rolling(14).apply(lambda x: x[df['Close'].diff() > 0].sum(), raw=False)
-                neg_flow = raw_money_flow.rolling(14).apply(lambda x: x[df['Close'].diff() < 0].sum(), raw=False)
-                mfi = 100 - (100 / (1 + (pos_flow / neg_flow.replace(0, 1e-10)).iloc[-1]))
+            if not df.empty and len(df) > 10:
+                c = float(df['Close'].iloc[-1])
+                atr = float(calculate_atr(df).iloc[-1])
+                dynamic_sl = int(c - (2 * atr))
+                s50 = df['Close'].rolling(50).mean().iloc[-1]
+                
+                typical_price = (df['High'] + df['Low'] + df['Close']) / 3
+                mfi = 50
+                if len(df) > 14:
+                    raw_mf = typical_price * df['Volume']
+                    pos_flow = raw_mf.rolling(14).apply(lambda x: x[df['Close'].diff() > 0].sum(), raw=False)
+                    neg_flow = raw_mf.rolling(14).apply(lambda x: x[df['Close'].diff() < 0].sum(), raw=False)
+                    mfi = 100 - (100 / (1 + (pos_flow / neg_flow.replace(0, 1e-10)).iloc[-1]))
 
-            checks = {
-                "Uptrend Status": bool(c > s50),
-                "Big Money Index": bool(mfi >= 50),
-                "RS Alpha Momentum": bool((c / df['Close'].iloc[-60] if len(df)>60 else 1) > 1)
-            }
-            label = "🏆 SECTOR LEADER" if is_leader else "TACTICAL AUDIT"
-            return checks, c, label, dynamic_sl
-    except:
-        return None, 0, "", 0
+                checks = {
+                    "Uptrend Status": bool(c > s50),
+                    "Big Money Index": bool(mfi >= 50),
+                    "RS Alpha Momentum": bool((c / df['Close'].iloc[-60] if len(df)>60 else 1) > 1)
+                }
+                return checks, c, "LEADER" if sector in top_sectors else "AUDIT", dynamic_sl
+        except:
+            time.sleep(2)
+            continue
     return None, 0, "", 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V58.0 ELITE SENSOR</h1><p style='margin:0; opacity:0.8;'>Hardened Tactical Audit | Multi-Index Support | Supreme Armor 🕵️</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V59.0 GHOST-COMMANDER</h1><p style='margin:0; opacity:0.8;'>Anti-Ban Protocol | Hardened Scraper | Market Lockdown Ready 🕵️</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -141,7 +136,6 @@ with st.sidebar:
 
 # --- 🚀 MAIN DASHBOARD ---
 ihsg_ret, is_bullish, mkt_breadth = get_market_context()
-top_sectors = get_sector_momentum()
 max_p = cap / 100
 
 if is_market_active or bypass:
@@ -154,43 +148,41 @@ if is_market_active or bypass:
 
     if not df_raw.empty:
         valid_signals = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            future_to_row = {executor.submit(run_deep_audit, row['name'], row['sector'], ihsg_ret, top_sectors, mode): row for _, row in df_raw.iterrows()}
-            for future in concurrent.futures.as_completed(future_to_row):
-                row = future_to_row[future]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            # Dibatasi ke 2 worker agar tidak memicu ban kolektif
+            futures = {executor.submit(run_deep_audit, row['name'], row['sector'], ihsg_ret): row for _, row in df_raw.iterrows()}
+            for f in concurrent.futures.as_completed(futures):
                 try:
-                    checks, prc, label, sl = future.result()
-                    if checks and all(checks.values()):
-                        valid_signals.append((row['name'], row['sector'], checks, prc, label, sl))
+                    res, p, l, sl = f.result()
+                    if res and all(res.values()): valid_signals.append((futures[f]['name'], futures[f]['sector'], l, p, sl))
                 except: pass
         
         if valid_signals:
             cols = st.columns(2)
-            for i, (name, sector, checks, prc, label, sl) in enumerate(valid_signals):
-                tp = int(prc + (prc - sl) * 3)
+            for i, (name, sector, l, p, sl) in enumerate(valid_signals):
                 with cols[i % 2]:
-                    st.markdown(f"<div class='stock-card'><h2>{name}</h2><span class='sector-badge'>{label}</span><div class='buy-zone'>ENTRY: {int(prc)} - {int(prc*1.03)}</div><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='font-size:11px;'>SL (ATR)</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div></div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='stock-card'><h2>{name}</h2><span class='sector-badge'>{l}</span><div class='buy-zone'>ENTRY: {int(p)} - {int(p*1.03)}</div><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='font-size:11px;'>SL (ATR)</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{int(p + (p-sl)*3)}</p></div></div></div>", unsafe_allow_html=True)
 else:
     st.info("🔴 RADAR STANDBY. Aktifkan Bypass Lockdown.")
 
-# --- 🛡️ TOOLS (TACTICAL AUDIT RESTORED) ---
+# --- 🛡️ TOOLS (THE TACTICAL AUDIT FIX) ---
 st.divider()
 ca, cb = st.columns(2)
 with ca:
     st.subheader("🔍 All-Cap Tactical Audit")
-    tid_input = st.text_input("Ticker Target:", placeholder="Contoh: BRMS, WIFI, BBCA").upper()
+    tid_input = st.text_input("Ticker Target:", placeholder="Contoh: WIFI, BRMS, BBRI").upper()
     if st.button("🚀 EKSEKUSI AUDIT MANUAL"):
         if tid_input:
-            with st.spinner(f"Interogasi {tid_input}..."):
-                # Force refresh session for manual audit
-                res, p_val, label, sl = run_deep_audit(tid_input, "N/A", ihsg_ret, [], mode)
+            with st.spinner(f"Menembus Pertahanan Yahoo untuk {tid_input}..."):
+                # Force refresh session specifically for manual audit
+                st.cache_resource.clear()
+                res, p_val, label, sl = run_deep_audit(tid_input)
                 if res:
                     st.markdown(f"<div class='stock-card'><h2 style='color:#a78bfa;'>{tid_input}</h2><p>Price: <b>Rp {int(p_val)}</b></p></div>", unsafe_allow_html=True)
-                    for k, v in res.items(): 
-                        st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='pyramid-panel'><b>Vonis Strategis:</b><br>Entry: {int(p_val)} | SL (ATR): {sl} | TP (3R): {int(p_val + (p_val-sl)*3)}</div>", unsafe_allow_html=True)
+                    for k, v in res.items(): st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='pyramid-panel'><b>Vonis:</b> Entry {int(p_val)} | SL {sl} | TP {int(p_val + (p_val-sl)*3)}</div>", unsafe_allow_html=True)
                 else: 
-                    st.error(f"❌ Server Yahoo sedang membatasi akses (Data Kosong). Coba ganti ticker atau tunggu 1 menit.")
+                    st.error(f"❌ Yahoo Memblokir Akses. Solusi: Tunggu 2 menit, ganti Ticker, atau klik Reboot App di Dashboard Streamlit.")
 
 with cb:
     st.subheader("🛡️ Portfolio & Buy Manager")
@@ -198,4 +190,4 @@ with cb:
     pid = st.text_input("Add to Portfolio:").upper()
     if st.button("🛒 TAMBAH"): st.success(f"Sinyal {pid} Terdaftar!")
 
-st.caption("V58.0 | Hardened Audit Engine Enabled")
+st.caption("V59.0 | Ultimate Stealth Commander Ready")

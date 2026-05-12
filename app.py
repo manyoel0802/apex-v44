@@ -5,11 +5,10 @@ import random
 import warnings
 import pytz
 from datetime import datetime
-from streamlit_autorefresh import st_autorefresh
 
 # --- ⚙️ CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V84.0 GHOST-REMOTE", layout="wide", page_icon="📡")
+st.set_page_config(page_title="V85.0 GHOST-REMOTE", layout="wide", page_icon="📡")
 
 # --- 🛰️ TELEGRAM SECRET COMMANDER ---
 try:
@@ -20,35 +19,30 @@ except:
     TELEGRAM_TOKEN = None
     CHAT_ID = None
 
-# --- 🕵️ STEALTH ENGINE ---
-def get_stealth_headers():
-    return {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Referer": "https://finance.yahoo.com/"}
-
 def send_telegram_msg(msg):
     if TELEGRAM_TOKEN and CHAT_ID:
         try:
             url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
             payload = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}
-            requests.post(url, json=payload, timeout=5)
+            requests.post(url, json=payload, timeout=8)
         except: pass
 
-# --- 🛡️ THE GHOST AUDIT ENGINE (COMPLETO) ---
+# --- 🛡️ THE GHOST AUDIT ENGINE ---
 def run_ghost_audit(ticker):
     clean_ticker = ticker.strip().upper().replace(".JK", "")
     try:
         url = f"https://query2.finance.yahoo.com/v8/finance/chart/{clean_ticker}.JK?interval=1d&range=6mo"
-        resp = requests.get(url, headers=get_stealth_headers(), timeout=10)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(url, headers=headers, timeout=10)
         res = resp.json()['chart']['result'][0]
         c_raw = res['indicators']['quote'][0]['close']
         v_raw = res['indicators']['quote'][0]['volume']
-        
         df = pd.DataFrame({'Close': c_raw, 'Volume': v_raw}).dropna()
         if not df.empty:
             c = float(df['Close'].iloc[-1])
             v_now = float(df['Volume'].iloc[-1])
             v_avg = df['Volume'].rolling(20).mean().iloc[-1]
             s50 = df['Close'].rolling(50).mean().iloc[-1]
-            
             checks = {
                 "EMA50 Uptrend": bool(c > s50),
                 "Volume Climax": bool(v_now > (v_avg * 2.0)),
@@ -57,109 +51,107 @@ def run_ghost_audit(ticker):
                 "ARA Base Setup": bool(c > df['Close'].iloc[-2])
             }
             prob = int((sum(checks.values()) / 5) * 100)
-            return checks, c, int(c*0.96), prob
+            # Pyramid Plan khusus untuk internal audit
+            plan = {
+                "e1": int(c), "e2": int(c * 1.02), "e3": int(c * 1.04),
+                "sl": int(c * 0.95), "tp1": int(c * 1.10), "tp2": int(c * 1.25)
+            }
+            return checks, c, prob, plan
     except: pass
-    return None, 0, 0, 0
+    return None, 0, 0, None
 
-# --- 🎨 VISUAL THEME V84.0 ---
+# --- 💉 REFRESH HTML (ANTI-PYARROW) ---
+st.markdown('<meta http-equiv="refresh" content="900">', unsafe_allow_html=True)
+
+# --- 🎨 VISUAL THEME ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
     .status-card { border-radius: 15px; padding: 25px; margin-bottom: 25px; border: 1px solid #30363d; background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%); }
-    .elite-card { background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-bottom: 15px; border-left: 6px solid #8b5cf6; }
-    .rank-badge { background: #1e3a8a; color: #60a5fa; padding: 4px 10px; border-radius: 5px; font-weight: bold; font-size: 14px; margin-bottom: 10px; display: inline-block; }
-    .audit-pass { color: #10b981; font-weight: bold; }
-    .audit-fail { color: #ef4444; font-weight: bold; }
+    .radar-card { background-color: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 15px; margin-bottom: 10px; border-left: 5px solid #8b5cf6; }
+    .audit-card { background-color: #0f172a; border: 1px solid #8b5cf6; border-radius: 12px; padding: 25px; margin-top: 20px; }
+    .pyramid-box { background-color: #020617; border: 1px dashed #4c1d95; padding: 15px; border-radius: 10px; margin-top: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
-st_autorefresh(interval=15 * 60 * 1000, key="v84_top_pulse")
-
 # --- 🗄️ SIDEBAR ---
 with st.sidebar:
-    st.write("Deploy")
-    st.title("V84.0 GHOST-REMOTE")
+    st.title("V85.0 REMOTE")
     st.divider()
-    st.info("Bypass Market: ACTIVE\n\nAuto-Scan: 900+ Stocks")
-    if st.button("🔄 Reboot System"):
-        st.cache_data.clear()
-        st.rerun()
+    st.info("Radar Mode: Minimalist\nAudit Mode: Full Pyramid\nTelegram: Active")
 
 # --- 🛰️ HEADER ---
-st.markdown(f"""
-    <div class='status-card'>
-        <h1 style='margin:0; font-size: 32px; color:#ddd6fe;'>💎 V84.0 GHOST-REMOTE</h1>
-        <p style='margin:0; opacity:0.8;'>Auto-Pulse: 15m | TOP 3 Analysis | Win-Rate 80%+ Guard 🕵️</p>
-    </div>
-    """, unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='color:#ddd6fe; margin:0;'>💎 V84.0 GHOST-REMOTE</h1><p style='margin:0; opacity:0.8;'>Elite Quality Guard | Segmented Intelligence Active 🕵️</p></div>", unsafe_allow_html=True)
 
-# --- 🚀 RADAR DISCOVERY (TOP 1, 2, 3) ---
-st.markdown("### 📡 Radar Discovery (Top 3 Elite)")
-
-with st.spinner("Menganalisa 900+ emiten... mengurutkan Top 3..."):
-    try:
-        url_scan = "https://scanner.tradingview.com/indonesia/scan"
-        payload = {
-            "filter": [{"left": "change", "operation": "greater", "right": 1.0}],
-            "columns": ["name"], "sort": {"sortBy": "change", "sortOrder": "desc"}, "range": [0, 50]
-        }
-        resp = requests.post(url_scan, json=payload, headers=get_stealth_headers(), timeout=10)
-        candidates = resp.json()['data']
+# --- 🚀 RADAR DISCOVERY (MINIMALIST) ---
+st.markdown("### 📡 Radar Discovery (Top 3)")
+try:
+    url_scan = "https://scanner.tradingview.com/indonesia/scan"
+    payload = {
+        "filter": [{"left": "change", "operation": "greater", "right": 1.0}],
+        "columns": ["name"], "sort": {"sortBy": "change", "sortOrder": "desc"}, "range": [0, 40]
+    }
+    resp = requests.post(url_scan, json=payload, timeout=10)
+    candidates = resp.json()['data']
+    
+    all_res = []
+    if candidates:
+        for s in candidates:
+            ticker = s['d'][0]
+            res, p, prob, plan = run_ghost_audit(ticker)
+            if prob and prob >= 80:
+                all_res.append({'ticker': ticker, 'prob': prob})
         
-        all_results = []
-        if candidates:
-            for s in candidates:
-                ticker = s['d'][0]
-                res, p, sl, prob = run_ghost_audit(ticker)
-                if prob >= 80:
-                    all_results.append({'ticker': ticker, 'price': p, 'sl': sl, 'prob': prob, 'details': res})
+        top_3 = sorted(all_res, key=lambda x: x['prob'], reverse=True)[:3]
+        for idx, stock in enumerate(top_3):
+            # TAMPILAN RADAR: HANYA NAMA & PROBABILITAS
+            st.markdown(f"""
+            <div class='radar-card'>
+                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                    <h3 style='color:#a78bfa; margin:0;'>TOP {idx+1}: {stock['ticker']}</h3>
+                    <span style='color:#60a5fa; font-weight:bold; font-size:18px;'>{stock['prob']}%</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
-            # SORTIR BERDASARKAN PROBABILITAS TERTINGGI
-            top_3 = sorted(all_results, key=lambda x: x['prob'], reverse=True)[:3]
-            
-            if top_3:
-                for idx, stock in enumerate(top_3):
-                    rank_label = f"TOP {idx+1} ANALYSIS"
-                    st.markdown(f"""
-                    <div class='elite-card'>
-                        <div class='rank-badge'>{rank_label}</div>
-                        <div style='display:flex; justify-content:space-between; align-items:center;'>
-                            <h2 style='color:#a78bfa; margin:0;'>🎯 {stock['ticker']}</h2>
-                            <span style='background:#1e3a8a; color:#60a5fa; padding:5px 12px; border-radius:8px; font-weight:bold;'>{stock['prob']}%</span>
-                        </div>
-                        <p style='margin-top:10px; font-size:18px;'>Price: <b>Rp {int(stock['price'])}</b> | SL: <b style='color:#ef4444;'>Rp {stock['sl']}</b></p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # AUTO-SEND TELEGRAM UNTUK TOP RANK
-                    msg = f"🏆 *{rank_label}*\nTicker: {stock['ticker']}\nProb: {stock['prob']}%\nPrice: Rp {int(stock['price'])}\nSL: {stock['sl']}"
-                    send_telegram_msg(msg)
-            else: st.info("Mencari emiten dengan analisa terbaik (Min 80%)...")
-    except: st.error("⚠️ Koneksi Radar Terganggu.")
+            # TELEGRAM: HASIL PANTAUAN RADAR SAJA
+            t_msg = f"🛰️ *RADAR ALERT*\nTOP {idx+1}: {stock['ticker']}\nProbabilitas: {stock['prob']}%"
+            send_telegram_msg(t_msg)
+    else: st.info("Mencari emiten terbaik...")
+except: st.error("Koneksi Radar Terganggu.")
 
-# --- 🔍 TACTICAL AUDIT (FULL INFORMATION) ---
+# --- 🔍 TACTICAL AUDIT (FULL PYRAMID) ---
 st.divider()
-st.markdown("### 🔍 All-Cap Tactical Audit (Full Info)")
+st.markdown("### 🔍 All-Cap Tactical Audit (Full Pyramid Plan)")
 target = st.text_input("Sniper Target:", value="CUAN").upper()
 
-if st.button("🚀 RUN FULL AUDIT"):
+if st.button("🚀 RUN DEEP AUDIT"):
     if target:
-        with st.spinner(f"Infiltrasi data {target}..."):
-            res, p, sl, prob = run_ghost_audit(target)
-            if res:
-                st.markdown(f"""
-                <div class='elite-card' style='border-left: 6px solid #10b981;'>
-                    <h2 style='color:#10b981;'>{target} - Audit Result</h2>
-                    <p style='font-size:20px;'>Probabilitas: <b>{prob}%</b></p>
-                    <p>Price: Rp {int(p)} | Stop Loss: Rp {sl}</p>
+        res, p, prob, plan = run_ghost_audit(target)
+        if res:
+            st.markdown(f"""
+            <div class='audit-card'>
+                <h2 style='color:#10b981; margin:0;'>{target} - DEEP ANALYSIS ({prob}%)</h2>
+                <hr style='border: 0.5px solid #30363d; margin: 15px 0;'>
+                <div class='pyramid-box'>
+                    <b style='color:#8b5cf6; font-size:18px;'>📐 PYRAMID ENTRY PLAN:</b><br>
+                    • Entry 1 (Now): <b>Rp {plan['e1']}</b><br>
+                    • Entry 2 (Avg Up): <b>Rp {plan['e2']}</b><br>
+                    • Entry 3 (Aggressive): <b>Rp {plan['e3']}</b><br><br>
+                    <b style='color:#ef4444;'>🛡️ RISK PROTECTION:</b><br>
+                    • Stop Loss: <b>Rp {plan['sl']} (Fixed 5%)</b><br><br>
+                    <b style='color:#10b981;'>💰 PROFIT TARGET:</b><br>
+                    • TP 1: Rp {plan['tp1']}<br>
+                    • TP 2 (Target ARA): <b>Rp {plan['tp2']}</b>
                 </div>
-                """, unsafe_allow_html=True)
-                
-                # TAMPILKAN INFORMASI KOMPLIT
-                cols = st.columns(2)
-                for i, (k, v) in enumerate(res.items()):
-                    with cols[i % 2]:
-                        st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
-            else: st.error("❌ Gagal audit. Ticker tidak ditemukan atau IP diblokir.")
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Indikator teknikal detail
+            cols = st.columns(3)
+            for i, (k, v) in enumerate(res.items()):
+                with cols[i % 3]:
+                    st.write(f"{'✅' if v else '❌'} {k}")
+        else: st.error("Data tidak ditemukan.")
 
-st.caption("V84.0 | Supreme Original Restoration | Top 3 Engine")
+st.caption("V85.0 | Supreme Segmented Intelligence | Anti-PyArrow")

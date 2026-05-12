@@ -12,9 +12,9 @@ import concurrent.futures
 # --- CONFIG & GOAPI KEY ---
 warnings.filterwarnings('ignore')
 GO_API_KEY = "4fcc756a-da82-5594-8c1d-20c8e54d"
-st.set_page_config(page_title="V53.4 ABSOLUTE STABILITY", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="V54.0 LQ45 VETERAN", layout="wide", page_icon="🛡️")
 
-# --- TEMA VISUAL SUPREME (LOCKED) ---
+# --- TEMA VISUAL SUPREME ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
@@ -28,21 +28,34 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# --- 🛡️ DAFTAR TARGET ELIT (LQ45 + ALPHA) ---
+LQ45_TICKERS = [
+    "ADRO", "AKRA", "AMRT", "ANTM", "ASII", "BBCA", "BBNI", "BBRI", "BBTN", "BMRI", 
+    "BRMS", "BRPT", "BUKA", "CPIN", "EMTK", "ESSA", "EXCL", "GOTO", "HRUM", "ICBP", 
+    "INCO", "INDF", "INKP", "INTP", "ITMG", "KLBF", "MAPI", "MDKA", "MEDC", "PGAS", 
+    "PTBA", "SIDO", "SMGR", "TLKM", "TOWR", "TPIA", "UNTR", "UNVR", "AMMN", "BREN", 
+    "CUAN", "PANI", "MBMA", "NCKL", "WIFI", "DFAM"
+]
+
 # --- 🛡️ GOAPI STABLE ENGINE ---
-def get_goapi_raw(endpoint, params={}):
-    params['api_key'] = GO_API_KEY
-    url = f"https://api.goapi.io/v1/stock/idx/{endpoint}"
+def get_goapi_price_hist(ticker):
+    params = {'api_key': GO_API_KEY, 'symbol': ticker}
+    # Jalur paling standar: prices/historical
+    url = f"https://api.goapi.io/v1/stock/idx/prices/historical"
     try:
         resp = requests.get(url, params=params, timeout=15)
-        return resp.json()
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+        if resp.status_code == 200:
+            return resp.json().get('data', {}).get('results', [])
+    except: pass
+    return []
 
 @st.cache_data(ttl=600)
 def get_market_context():
     try:
-        res = get_goapi_raw("indices/composite/historical")
-        data = res.get('data', {}).get('results', [])
+        # Jalur IHSG via GoAPI
+        url = "https://api.goapi.io/v1/stock/idx/indices/composite/historical"
+        resp = requests.get(url, params={'api_key': GO_API_KEY}, timeout=10)
+        data = resp.json().get('data', {}).get('results', [])
         if data:
             df = pd.DataFrame(data)
             df['close'] = pd.to_numeric(df['close'])
@@ -54,9 +67,7 @@ def get_market_context():
 
 def run_deep_audit(ticker, ihsg_ret):
     try:
-        # Jalur Resmi: prices/{symbol}/historical
-        res = get_goapi_raw(f"prices/{ticker}/historical")
-        results = res.get('data', {}).get('results', [])
+        results = get_goapi_price_hist(ticker)
         if not results or len(results) < 100: return None, 0
         
         df = pd.DataFrame(results)
@@ -84,7 +95,7 @@ def run_deep_audit(ticker, ihsg_ret):
     except: return None, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🛡️ V53.4 ABSOLUTE STABILITY</h1><p style='margin:0; opacity:0.8;'>Source: GoAPI Root | Absolute Stability Route | Anti-Stuck Active</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🛡️ V54.0 LQ45 VETERAN</h1><p style='margin:0; opacity:0.8;'>Source: GoAPI Stable Historical | Manual Elite List | Stability Focused</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -95,13 +106,10 @@ with st.sidebar:
     rrr = st.number_input("Min RRR Target", value=3.0)
     bypass = st.toggle("🚨 Bypass Market Time", value=False)
     st.divider()
-    if st.button("🛠️ Diagnosa Jalur Root"):
-        diag = get_goapi_raw("companies") # Jalur paling dasar
-        if diag.get('status') == 'success':
-            st.success("✅ Koneksi Root OK (Daftar Saham Terbaca)!")
-            st.json(diag.get('data', {}).get('results', [])[:2])
-        else:
-            st.error(f"❌ Error: {diag.get('message')}")
+    if st.button("🛠️ Diagnosa Koneksi"):
+        test = get_goapi_price_hist("BBCA")
+        if test: st.success("✅ Jalur Historical BBCA Terbuka!")
+        else: st.error("❌ Jalur Historical Terkunci. Cek API Key Kapten.")
 
 # --- 🚀 MAIN DASHBOARD ---
 ihsg_ret, is_bullish, mkt_breadth = get_market_context()
@@ -111,37 +119,28 @@ tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
 
 if datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time() or bypass:
-    st.subheader(f"📡 {mode} Result (Scan via Companies Root)")
+    st.subheader(f"📡 {mode} Result (Elite List Scan)")
     
-    # Ambil daftar perusahaan sebagai basis scan
-    res_comp = get_goapi_raw("companies")
-    tickers = res_comp.get('data', {}).get('results', [])
+    valid_signals = []
+    # Scan manual dari list LQ45_TICKERS
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_row = {executor.submit(run_deep_audit, t, ihsg_ret): t for t in LQ45_TICKERS}
+        for future in concurrent.futures.as_completed(future_to_row):
+            t = future_to_row[future]
+            try:
+                checks, prc = future.result()
+                if checks and all(checks.values()) and prc <= max_p:
+                    valid_signals.append((t, "IDX", checks, prc))
+            except: pass
     
-    if tickers:
-        # Kita acak atau ambil 30 sampel agar scan tidak terlalu berat
-        sample_tickers = random.sample(tickers, min(30, len(tickers)))
-        valid_signals = []
-        
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_row = {executor.submit(run_deep_audit, t['symbol'], ihsg_ret): t for t in sample_tickers}
-            for future in concurrent.futures.as_completed(future_to_row):
-                t = future_to_row[future]
-                try:
-                    checks, prc = future.result()
-                    if checks and all(checks.values()) and prc <= max_p:
-                        valid_signals.append((t['symbol'], "IDX", checks, prc))
-                except: pass
-        
-        if valid_signals:
-            cols = st.columns(2)
-            for i, (name, sector, checks, prc) in enumerate(valid_signals):
-                sl, tp = int(prc*(1-risk/100)), int(prc + (prc*0.05)*rrr)
-                with cols[i % 2]:
-                    st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='margin:0; color:#a78bfa;'>{name}</h2><span class='sector-badge'>{sector}</span></div><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div><div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div></div><div class='pyramid-panel'><b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN:</b><br><span style='font-size:11px;'>Next Entry (+5%): <b>{int(prc*1.05)}</b> | Risk-Free SL: <b>{int(prc)}</b></span></div></div>", unsafe_allow_html=True)
-        else:
-            st.info("Penyisiran 30 saham selesai, belum ada yang lolos kualifikasi saat ini. Klik Segarkan Data untuk menyisir saham lainnya.")
+    if valid_signals:
+        cols = st.columns(2)
+        for i, (name, sector, checks, prc) in enumerate(valid_signals):
+            sl, tp = int(prc*(1-risk/100)), int(prc + (prc*0.05)*rrr)
+            with cols[i % 2]:
+                st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='margin:0; color:#a78bfa;'>{name}</h2><span class='sector-badge'>{sector}</span></div><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='color:#9ca3af; font-size:11px;'>ENTRY</p><p class='target-value'>{int(prc)}</p></div><div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='color:#9ca3af; font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{tp}</p></div></div><div class='pyramid-panel'><b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN:</b><br><span style='font-size:11px;'>Next Entry (+5%): <b>{int(prc*1.05)}</b> | Risk-Free SL: <b>{int(prc)}</b></span></div></div>", unsafe_allow_html=True)
     else:
-        st.error("Gagal menarik daftar saham. Periksa API Key Kapten.")
+        st.info("Penyisiran saham elit selesai, belum ada yang lolos kualifikasi saat ini.")
 else:
     st.info(f"🔴 RADAR STANDBY.")
 
@@ -154,7 +153,7 @@ with ca:
     if st.button("🚀 Run Tactical Audit"):
         if tid_input:
             with st.spinner(f"Interogasi {tid_input}..."):
-                res, p_val = run_deep_audit(tid_input.replace(".JK",""), ihsg_ret)
+                res, p_val = run_deep_audit(tid_input, ihsg_ret)
                 if res:
                     st.write(f"### Vonis {tid_input}:")
                     for k, v in res.items(): st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
@@ -167,4 +166,4 @@ with cb:
     pid = st.text_input("Add to Portfolio:", key="port_in").upper()
     if st.button("🛒 EKSEKUSI"): st.success(f"Signal {pid} dikirim!")
 
-st.caption("V53.4 | GoAPI Root Route (Absolute Stability)")
+st.caption("V54.0 | Elite List Manual Scan | Fixed GoAPI Route")

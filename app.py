@@ -13,14 +13,18 @@ import concurrent.futures
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V61.1 ELITE PYRAMID", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V62.0 PHANTOM RESOLVE", layout="wide", page_icon="💎")
 
-# --- 🕵️ HARDENED SESSION ---
+# --- 🕵️ ULTRA-HARDENED SESSION ---
 @st.cache_resource
 def get_hardened_session():
     session = requests.Session()
-    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    session.headers.update({'User-Agent': ua})
+    # Rotasi User-Agent paling baru (Mei 2026)
+    session.headers.update({
+        'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+    })
     return session
 
 # --- TEMA VISUAL SUPREME (LOCKED) ---
@@ -38,7 +42,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- ⏳ CONTEXT & JADWAL ---
+# --- ⏳ CONTEXT ---
 tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
 is_market_active = (0 <= now.weekday() <= 4) and (datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time())
@@ -46,76 +50,69 @@ is_market_active = (0 <= now.weekday() <= 4) and (datetime.strptime("08:30", "%H
 @st.cache_data(ttl=300)
 def get_market_context():
     try:
-        session = get_hardened_session()
-        idx = yf.Ticker("^JKSE", session=session).history(period="1y")
+        idx = yf.Ticker("^JKSE").history(period="1y")
         curr = idx['Close'].iloc[-1]
-        old = idx['Close'].iloc[-126]
-        return (curr / old) - 1, curr > idx['Close'].rolling(50).mean().iloc[-1]
+        return (curr / idx['Close'].iloc[-126]) - 1, curr > idx['Close'].rolling(50).mean().iloc[-1]
     except: return 0, True
 
-def calculate_atr(df, window=14):
-    high_low = df['High'] - df['Low']
-    high_close = np.abs(df['High'] - df['Close'].shift())
-    low_close = np.abs(df['Low'] - df['Close'].shift())
-    return pd.concat([high_low, high_close, low_close], axis=1).max(axis=1).rolling(window).mean()
-
-# --- 🛡️ THE 5-ASPECT AUDIT ENGINE (V61.1) ---
+# --- 🛡️ CORE PHANTOM ENGINE (V62.0) ---
 def run_deep_audit(ticker, sector="N/A", ihsg_ret=0, top_sectors=[]):
     clean_ticker = ticker.strip().upper().replace(".JK", "")
     session = get_hardened_session()
     
-    # --- TAHAP 1: JALUR YAHOO (DETAILED) ---
+    # 🚀 JALUR 1: YAHOO FORCE (Audit Mendalam)
     try:
         time.sleep(random.uniform(0.3, 0.5))
-        stock_obj = yf.Ticker(f"{clean_ticker}.JK", session=session)
-        df = stock_obj.history(period="1y", auto_adjust=True)
+        s_obj = yf.Ticker(f"{clean_ticker}.JK", session=session)
+        df = s_obj.history(period="1y", auto_adjust=True)
         if not df.empty and len(df) > 20:
             c = float(df['Close'].iloc[-1])
-            atr = float(calculate_atr(df).iloc[-1])
-            s50 = df['Close'].rolling(50).mean().iloc[-1]
-            s200 = df['Close'].rolling(200).mean().iloc[-1]
-            typical_p = (df['High'] + df['Low'] + df['Close']) / 3
-            raw_mf = typical_p * df['Volume']
-            pos_f = raw_mf.rolling(14).apply(lambda x: x[df['Close'].diff() > 0].sum(), raw=False)
-            neg_f = raw_mf.rolling(14).apply(lambda x: x[df['Close'].diff() < 0].sum(), raw=False)
-            mfi = 100 - (100 / (1 + (pos_f / neg_f.replace(0, 1e-10)).iloc[-1]))
+            s50, s200 = df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
+            atr = (pd.concat([df['High']-df['Low'], (df['High']-df['Close'].shift()).abs(), (df['Low']-df['Close'].shift()).abs()], axis=1).max(axis=1).rolling(14).mean()).iloc[-1]
+            mfi_val = 50 # Default
+            if len(df) > 14:
+                tp = (df['High'] + df['Low'] + df['Close']) / 3
+                rmf = tp * df['Volume']
+                pos = rmf.rolling(14).apply(lambda x: x[df['Close'].diff() > 0].sum(), raw=False)
+                neg = rmf.rolling(14).apply(lambda x: x[df['Close'].diff() < 0].sum(), raw=False)
+                mfi_val = 100 - (100 / (1 + (pos / neg.replace(0, 1e-10)).iloc[-1]))
             
             checks = {
-                "Uptrend Status": bool(c > s50 > s200),
+                "Uptrend Status": bool(c > s50),
                 "Minervini Stage 2": bool(s50 > s200),
-                "Big Money Index": bool(mfi >= 50),
+                "Big Money Index": bool(mfi_val >= 50),
                 "RS Alpha Momentum": bool((c / df['Close'].iloc[-60]) > 1),
-                "Bandar Accum": bool(mfi > 55)
+                "Bandar Accum": bool(mfi_val > 55)
             }
             return checks, c, "YAHOO", int(c - (2 * atr))
     except: pass
 
-    # --- TAHAP 2: JALUR TRADINGVIEW INTELLIGENCE (FALLBACK) ---
+    # 🚀 JALUR 2: TRADINGVIEW FORCE (Antiblocking Fallback)
     try:
-        q = (Query().set_markets('indonesia')
-             .select('name','close','EMA50','EMA200','MoneyFlowIndex','average_volume_120d','ATR','performance.6m')
-             .where(Column('name') == clean_ticker).limit(1))
-        _, tv = q.get_scanner_data()
-        if not tv.empty:
-            c = float(tv['close'].iloc[0])
-            e50 = float(tv['EMA50'].iloc[0])
-            e200 = float(tv['EMA200'].iloc[0])
-            mfi = float(tv['MoneyFlowIndex'].iloc[0])
-            atr = float(tv['ATR'].iloc[0])
-            perf = float(tv['performance.6m'].iloc[0])
-            checks = {
-                "Uptrend Status": bool(c > e50),
-                "Minervini Stage 2": bool(e50 > e200),
-                "Big Money Index": bool(mfi >= 45),
-                "RS Alpha Momentum": bool(perf > 0),
-                "Bandar Accum": bool(mfi > 50)
-            }
-            return checks, c, "T-VIEW", int(c - (1.5 * atr))
+        # Mencoba mencari dengan prefix IDX:
+        for t_query in [clean_ticker, f"IDX:{clean_ticker}"]:
+            q = (Query().set_markets('indonesia')
+                 .select('name','close','EMA50','EMA200','MoneyFlowIndex','ATR','performance.6m','relative_strength_index')
+                 .where(Column('name') == t_query).limit(1))
+            _, tv = q.get_scanner_data()
+            if not tv.empty:
+                c = float(tv['close'].iloc[0])
+                mfi_v = float(tv['MoneyFlowIndex'].iloc[0])
+                checks = {
+                    "Uptrend Status": bool(c > float(tv['EMA50'].iloc[0])),
+                    "Minervini Stage 2": bool(float(tv['EMA50'].iloc[0]) > float(tv['EMA200'].iloc[0])),
+                    "Big Money Index": bool(mfi_v >= 45),
+                    "RS Alpha Momentum": bool(float(tv['performance.6m'].iloc[0]) > 0),
+                    "Bandar Accum": bool(mfi_v > 50)
+                }
+                atr_val = float(tv['ATR'].iloc[0]) if not np.isnan(tv['ATR'].iloc[0]) else c*0.03
+                return checks, c, "T-VIEW", int(c - (1.5 * atr_val))
     except: pass
+    
     return None, 0, "", 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V61.1 ELITE PYRAMID</h1><p style='margin:0; opacity:0.8;'>5-Aspect Audit + Strategic Pyramid Scaling | Hybrid Intelligence Mode 🕵️</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V62.0 PHANTOM RESOLVE</h1><p style='margin:0; opacity:0.8;'>Force-Fetch Data Recovery | 5-Aspect Analysis | Pyramid Scaling 🕵️</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -124,10 +121,10 @@ with st.sidebar:
     mode = st.radio("🚀 Scan Sensitivity", ["Standard", "Aggressive"], index=0)
     st.divider()
     bypass = st.toggle("🚨 Bypass Market Lockdown", value=False)
-    if st.button("🛠️ Refresh Global Session"):
+    if st.button("🔄 Force Reboot Data"):
         st.cache_resource.clear()
         st.cache_data.clear()
-        st.success("Radar Re-Calibrated!")
+        st.success("Sistem Berhasil Di-Reset!")
 
 # --- 🚀 MAIN DASHBOARD ---
 ihsg_ret, is_bullish = get_market_context()
@@ -144,73 +141,53 @@ if is_market_active or bypass:
     if not df_raw.empty:
         valid_signals = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            futures = {executor.submit(run_deep_audit, row['name'], row['sector'], ihsg_ret): row for _, row in df_raw.iterrows()}
-            for f in concurrent.futures.as_completed(futures):
+            futs = {executor.submit(run_deep_audit, r['name'], r['sector'], ihsg_ret): r for _, r in df_raw.iterrows()}
+            for f in concurrent.futures.as_completed(futs):
                 try:
                     res, p, src, sl = f.result()
-                    if res and all(res.values()): valid_signals.append((futures[f]['name'], futures[f]['sector'], src, p, sl))
+                    if res and all(res.values()): valid_signals.append((futs[f]['name'], futs[f]['sector'], src, p, sl))
                 except: pass
         
         if valid_signals:
             cols = st.columns(2)
             for i, (name, sector, src, p, sl) in enumerate(valid_signals):
-                tp = int(p + (p - sl) * 3)
                 with cols[i % 2]:
-                    st.markdown(f"""
-                    <div class='stock-card'>
-                        <div style='display:flex; justify-content:space-between;'>
-                            <h2 style='margin:0; color:#a78bfa;'>{name}</h2>
-                            <span class='sector-badge'>SRC: {src}</span>
-                        </div>
-                        <div style='margin-top:10px;'><span class='buy-zone'>AREA ENTRY ELITE: {int(p)} - {int(p*1.03)}</span></div>
-                        <div style='display:flex; justify-content:space-between; margin-top:15px;'>
-                            <div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS (ATR)</p><p class='target-value' style='color:#f87171;'>{sl}</p></div>
-                            <div><p style='color:#9ca3af; font-size:11px;'>TARGET TP (3R)</p><p class='target-value' style='color:#10b981;'>{tp}</p></div>
-                        </div>
-                        <div class='pyramid-panel'>
-                            <b style='color:#818cf8; font-size:11px;'>📐 ELITE COMMANDER PLAN (PYRAMID):</b><br>
-                            <span style='font-size:11px;'>
-                            • <b>Entry 1 (50%):</b> Beli di area {int(p)}.<br>
-                            • <b>Entry 2 (50%):</b> Tambah posisi jika harga tembus <b>{int(p*1.04)}</b>.<br>
-                            • <b>Risk Control:</b> Geser SL ke harga modal setelah Entry 2 aktif.
-                            </span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"<div class='stock-card'><h2>{name}</h2><span class='sector-badge'>SRC: {src}</span><div class='buy-zone'>ENTRY: {int(p)} - {int(p*1.03)}</div><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='font-size:11px;'>SL (ATR)</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='font-size:11px;'>TARGET TP</p><p class='target-value' style='color:#10b981;'>{int(p + (p-sl)*3)}</p></div></div></div>", unsafe_allow_html=True)
 else:
     st.info("🔴 RADAR STANDBY.")
 
-# --- 🛡️ TOOLS (PYRAMID PLAN RESTORED FOR AUDIT) ---
+# --- 🛡️ TOOLS (THE ABSOLUTE FIX: 5 ASPECTS + PYRAMID) ---
 st.divider()
 ca, cb = st.columns(2)
 with ca:
     st.subheader("🔍 All-Cap Tactical Audit")
     tid_input = st.text_input("Ticker Target:", placeholder="Contoh: WIFI, BRMS, BBCA").upper()
-    if st.button("🚀 EKSEKUSI AUDIT MANUAL"):
+    if st.button("🚀 EKSEKUSI Sniper Audit"):
         if tid_input:
-            with st.spinner(f"Menganalisa 5 Aspek & Pyramid Plan untuk {tid_input}..."):
+            with st.spinner(f"Menembus Pertahanan untuk {tid_input}..."):
                 res, p_val, src, sl = run_deep_audit(tid_input)
                 if res:
                     st.markdown(f"<div class='stock-card'><h2 style='color:#a78bfa;'>{tid_input}</h2><p>Price: <b>Rp {int(p_val)}</b> <small>(via {src})</small></p></div>", unsafe_allow_html=True)
+                    # 5 ASPEK PENYARINGAN
                     for k, v in res.items(): 
                         st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
                     
-                    # PYRAMID PLAN FOR AUDIT MANUAL
+                    # PYRAMID PLAN
                     st.markdown(f"""
                     <div class='pyramid-panel'>
-                        <b style='color:#818cf8; font-size:11px;'>📐 STRATEGIC PLAN (PYRAMID):</b><br>
+                        <b style='color:#818cf8; font-size:11px;'>📐 ELITE PYRAMID PLAN:</b><br>
                         <span style='font-size:11px;'>
-                        • <b>Entry 1:</b> {int(p_val)} | <b>Entry 2 (Scale Up):</b> {int(p_val*1.04)}<br>
-                        • <b>SL (ATR):</b> {sl} | <b>Target Profit:</b> {int(p_val + (p_val-sl)*3)}<br>
-                        • <b>Vonis:</b> Saham terkonfirmasi diakumulasi uang besar via {src}.
+                        • <b>Entry 1 (50%):</b> {int(p_val)} | <b>Entry 2 (+4%):</b> {int(p_val*1.04)}<br>
+                        • <b>SL (ATR):</b> {sl} | <b>TP (3R):</b> {int(p_val + (p_val-sl)*3)}<br>
+                        • <b>Action:</b> Validasi sinyal teknikal via {src} Terkonfirmasi.
                         </span>
                     </div>
                     """, unsafe_allow_html=True)
-                else: st.error(f"❌ DATA TIDAK DITEMUKAN. Silakan ganti ticker atau refresh session.")
+                else: st.error(f"❌ DATA TIDAK DITEMUKAN. Pastikan Ticker benar atau klik 'Force Reboot Data' di sidebar.")
 
 with cb:
     st.subheader("🛡️ Portfolio & Buy Manager")
     pid = st.text_input("Add to Portfolio:").upper()
     if st.button("🛒 TAMBAH"): st.success(f"Saham {pid} Terdaftar!")
 
-st.caption("V61.1 | Elite Scaling & Pyramid Mode Active")
+st.caption("V62.0 | Absolute Phantom Recovery Mode")

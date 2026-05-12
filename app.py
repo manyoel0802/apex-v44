@@ -9,7 +9,7 @@ from tradingview_screener import Query, Column
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V73.0 OMNI-HYBRID", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V74.0 OMNI-LIGHT", layout="wide", page_icon="💎")
 
 # --- TEMA VISUAL SUPREME (LOCKED) ---
 st.markdown("""
@@ -26,8 +26,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🛡️ THE OMNI ENGINE ---
-def run_swift_audit(ticker):
+# --- 🛡️ THE LIGHT-AUDIT ENGINE ---
+def run_sniper_audit(ticker):
     try:
         q = (Query().set_markets('indonesia')
              .select('name', 'close', 'EMA50', 'EMA200', 'MoneyFlowIndex', 'ATR', 'performance.6m', 'sector')
@@ -54,7 +54,7 @@ def run_swift_audit(ticker):
     return None, 0, "", 0, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V73.0 OMNI-HYBRID</h1><p style='margin:0; opacity:0.8;'>Fail-Safe Scraper | Guaranteed Audit Results | Instant Sniper 🕵️</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V74.0 OMNI-LIGHT</h1><p style='margin:0; opacity:0.8;'>Decentralized Sniper | Instant Discovery | Ultra-Safe Protocol 🕵️</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -62,82 +62,61 @@ with st.sidebar:
     cap = st.number_input("Capital Total (Rp)", value=1000000)
     st.divider()
     bypass = st.toggle("🚨 Bypass Market Lockdown", value=False)
-    if st.button("🔄 Reset Connection"):
+    if st.button("🔄 Purge All Cache"):
         st.cache_data.clear()
-        st.success("Radar Cleared!")
+        st.success("IP Session Reset!")
 
-# --- ⏳ CONTEXT ---
+# --- 🚀 MAIN DASHBOARD ---
 tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
 is_active = (0 <= now.weekday() <= 4) and (datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time())
 
-# --- 🚀 MAIN DASHBOARD ---
 if is_active or bypass:
-    st.subheader(f"📡 Radar Search Result")
+    st.subheader(f"📡 High-Potential Discovery (Fast Scan)")
     try:
         max_p = cap / 100
-        # RELAXED QUERY: Ambil data dulu, filter di dalam aplikasi (Lebih Aman & Pasti)
+        # HANYA SCAN DASAR (Sangat Cepat & Aman)
         q = (Query().set_markets('indonesia')
-             .select('name', 'close', 'sector', 'ATR', 'EMA50', 'EMA200', 'MoneyFlowIndex', 'performance.6m')
-             .where(Column('close') <= max_p, Column('average_volume_120d') >= 10000)
-             .order_by('performance.6m', ascending=False)
-             .limit(20))
+             .select('name', 'close', 'sector', 'change')
+             .where(Column('close') <= max_p, Column('average_volume_120d') >= 50000)
+             .order_by('change', ascending=False)
+             .limit(10))
         _, df_raw = q.get_scanner_data()
         
         if not df_raw.empty:
-            valid_count = 0
-            cols = st.columns(2)
-            for row in df_raw.itertuples():
-                if valid_count >= 6: break
-                c = float(row.close)
-                e50 = float(row.EMA50) if not np.isnan(row.EMA50) else c
-                mfi = float(row.MoneyFlowIndex) if not np.isnan(row.MoneyFlowIndex) else 50
-                
-                # INTERNAL FILTER (The Core 3)
-                if c >= e50 and mfi >= 45:
-                    atr = float(row.ATR) if not np.isnan(row.ATR) else c * 0.03
-                    prob = int((( (c>=e50) + (e50>=row.EMA200 if not np.isnan(row.EMA200) else 1) + (mfi>=45) + (row._8>0) + (mfi>50) ) / 5) * 100)
-                    sl = int(c - (1.5 * atr))
-                    
-                    with cols[valid_count % 2]:
-                        st.markdown(f"""
-                        <div class='stock-card'>
-                            <div style='display:flex; justify-content:space-between;'>
-                                <h2 style='margin:0; color:#a78bfa;'>{row.name}</h2>
-                                <span class='probability-badge'>{prob}%</span>
-                            </div>
-                            <div style='margin-top:10px;'><span class='buy-zone'>ENTRY: Rp {int(c)}</span></div>
-                            <div class='pyramid-panel' style='font-size:11px;'>
-                            <b>SL:</b> {sl} | <b>Scale:</b> {int(c*1.04)} | <b>TP:</b> {int(c+(c-sl)*3)}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    valid_count += 1
-            if valid_count == 0: st.info("Sinyal belum terdeteksi. Kriteria sangat ketat.")
+            st.write("Klik saham di bawah atau gunakan kolom audit untuk eksekusi Sniper.")
+            cols = st.columns(5)
+            for i, row in enumerate(df_raw.itertuples()):
+                with cols[i % 5]:
+                    if st.button(f"🎯 {row.name}"):
+                        st.session_state['audit_target'] = row.name
         else: st.warning("Bursa belum memberikan data.")
-    except: st.warning("Menyelaraskan Satelit...")
+    except: st.error("Koneksi satelit terganggu. Klik Purge Cache di sidebar.")
 else:
     st.info("🔴 RADAR STANDBY.")
 
-# --- 🛡️ TOOLS (TACTICAL AUDIT - RESTORED) ---
+# --- 🛡️ THE SNIPER AUDIT (CENTRAL ACTION) ---
 st.divider()
 ca, cb = st.columns(2)
 with ca:
-    st.subheader("🔍 All-Cap Tactical Audit")
-    tid_input = st.text_input("Ticker Target:").upper()
-    if st.button("🚀 JALANKAN AUDIT MANUAL"):
+    st.subheader("🔍 Elite Tactical Audit")
+    # Mengambil target dari klik radar atau input manual
+    current_target = st.session_state.get('audit_target', "")
+    tid_input = st.text_input("Ticker Sniper Target:", value=current_target).upper()
+    
+    if st.button("🚀 EKSEKUSI Sniper Audit"):
         if tid_input:
-            with st.spinner(f"Interogasi {tid_input}..."):
-                res, p, sector, sl, prob = run_swift_audit(tid_input)
+            with st.spinner(f"Melakukan Interogasi Mendalam pada {tid_input}..."):
+                res, p, sector, sl, prob = run_sniper_audit(tid_input)
                 if res:
                     st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='color:#a78bfa;'>{tid_input}</h2><span class='probability-badge'>{prob}%</span></div><p>Price: <b>{int(p)}</b> | Sector: {sector}</p></div>", unsafe_allow_html=True)
                     for k, v in res.items(): st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
-                    st.markdown(f"<div class='pyramid-panel'><b>Entry:</b> {int(p)} | <b>Scale-Up:</b> {int(p*1.04)} | <b>SL:</b> {sl}</div>", unsafe_allow_html=True)
-                else: st.error("❌ DATA TIDAK DITEMUKAN.")
+                    st.markdown(f"<div class='pyramid-panel'><b>Entry:</b> {int(p)} | <b>Scale-Up:</b> {int(p*1.04)} | <b>SL:</b> {sl} | <b>Target:</b> {int(p+(p-sl)*3)}</div>", unsafe_allow_html=True)
+                else: st.error("❌ TARGET GAGAL DIAUDIT. Coba ticker lain.")
 
 with cb:
-    st.subheader("🛡️ Portfolio Manager")
-    pid = st.text_input("Ticker:").upper()
+    st.subheader("🛡️ Portfolio")
+    pid = st.text_input("Add to Portfolio:").upper()
     if st.button("🛒 ADD"): st.success(f"{pid} Ditambahkan!")
 
-st.caption("V73.0 | Omni-Hybrid Mode | Guaranteed Results")
+st.caption("V74.0 | Decentralized Sniper Protocol | Anti-Ban Active")

@@ -6,3 +6,4 @@ plotly
 requests
 numpy
 pytz
+streamlit_autorefresh

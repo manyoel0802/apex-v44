@@ -13,7 +13,7 @@ import concurrent.futures
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V57.4 ULTIMATE SYNC", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V57.5 ULTIMATE SYNC", layout="wide", page_icon="💎")
 
 # --- 🕵️ STEALTH HEADERS ---
 USER_AGENTS = [
@@ -28,7 +28,7 @@ def get_stealth_session():
     session.headers.update({'User-Agent': random.choice(USER_AGENTS)})
     return session
 
-# --- TEMA VISUAL SUPREME (RESTORED) ---
+# --- TEMA VISUAL SUPREME (LOCKED) ---
 st.markdown("""
     <style>
     .main { background-color: #0d1117; }
@@ -108,12 +108,13 @@ def run_deep_audit(ticker, ihsg_ret, top_sectors):
     except: return None, 0, "", 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V57.4 ULTIMATE SYNC</h1><p style='margin:0; opacity:0.8;'>Elite Commander Restore | Sync-Logic Locked | Multi-Route Stability 🕵️</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V57.5 ULTIMATE SYNC</h1><p style='margin:0; opacity:0.8;'>Elite Commander Ready | Capital Default: 1M | Sync-Logic Locked 🕵️</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Command Center")
-    cap = st.number_input("Capital Total (Rp)", value=10000000)
+    # UPDATED DEFAULT VALUE TO 1,000,000
+    cap = st.number_input("Capital Total (Rp)", value=1000000)
     mode = st.radio("🚀 Scan Sensitivity", ["Standard", "Aggressive"], index=0)
     st.divider()
     if st.button("🛠️ Jalankan Diagnosa API"):
@@ -155,7 +156,7 @@ if is_market_open or st.sidebar.toggle("🚨 Bypass Market Time", value=False):
             df_raw = pd.DataFrame()
 
         if df_raw.empty:
-            st.warning("Sinyal Tidak Ditemukan. Coba longgarkan filter atau naikkan Capital.")
+            st.warning(f"Sinyal Tidak Ditemukan. Tidak ada saham di bawah Rp {int(max_p)} saat ini. Coba naikkan Capital atau pilih 'Aggressive'.")
         else:
             valid_signals = []
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
@@ -196,7 +197,7 @@ if is_market_open or st.sidebar.toggle("🚨 Bypass Market Time", value=False):
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
-            else: st.info("Sektor terkuat sudah dipindai, belum ada sinyal 'Big Money' saat ini.")
+            else: st.info("Sektor terkuat sudah dipindai, belum ada sinyal 'Big Money' yang lolos kualifikasi.")
 else:
     st.info("🔴 RADAR STANDBY.")
 
@@ -222,4 +223,4 @@ with cb:
     pid = st.text_input("Add to Portfolio:", key="port_in").upper()
     if st.button("🛒 EKSEKUSI"): st.success(f"Signal {pid} dikirim!")
 
-st.caption("V57.4 | All Visuals & Logic Restored | Ultimate Sync Mode")
+st.caption("V57.5 | Ultimate Sync | Capital 1M Default")

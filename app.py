@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V79.0 GHOST BYPASS", layout="wide", page_icon="🎯")
+st.set_page_config(page_title="V80.0 OMNI-LIGHT SNIPER", layout="wide", page_icon="🎯")
 
 # --- TEMA VISUAL SUPREME (LOCKED) ---
 st.markdown("""
@@ -28,10 +28,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🕵️ ULTRA-STEALTH FETCHING ---
-def run_stealth_audit(ticker):
+# --- 🕵️ ULTRA-STEALTH ENGINE ---
+def run_sniper_audit(ticker):
     try:
-        # Jalur Cepat: Hanya ambil data mentah untuk satu target
+        # Jalur Cepat: Hanya interogasi satu target
         q = (Query().set_markets('indonesia')
              .select('name', 'close', 'EMA50', 'EMA200', 'MoneyFlowIndex', 'performance.6m', 'ATR', 'sector')
              .where(Column('name').contains(ticker.upper())).limit(1))
@@ -49,7 +49,6 @@ def run_stealth_audit(ticker):
                 "RS Alpha Momentum": bool(float(row['performance.6m']) > 0),
                 "Bandar Accum": bool(mfi > 52)
             }
-            # Kalkulasi Probabilitas: P = (Jumlah Aspek / 5) * 100
             prob = int((sum(checks.values()) / 5) * 100)
             atr = float(row['ATR']) if not np.isnan(row['ATR']) else c * 0.03
             return checks, c, row['sector'], int(c - (1.5 * atr)), prob
@@ -57,7 +56,7 @@ def run_stealth_audit(ticker):
     return None, 0, "", 0, 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🎯 V79.0 GHOST BYPASS</h1><p style='margin:0; opacity:0.8;'>ARA Sniper Mode Active | Anti-Freeze Protocol | High-Conviction Only 🕵️</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>🎯 V80.0 OMNI-LIGHT SNIPER</h1><p style='margin:0; opacity:0.8;'>Anti-Block Discovery | 80% Win-Rate Focus | Zero-Wait Scraper 🕵️</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -74,62 +73,46 @@ tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
 is_active = (0 <= now.weekday() <= 4) and (datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time())
 
-# --- 🚀 ARA sniper RADAR (HYPER-DRIVE) ---
+# --- 🚀 DISCOVERY RADAR (FAST & LIGHT) ---
 if is_active or bypass:
-    st.subheader(f"📡 High-Potential ARA Tracker")
+    st.subheader(f"📡 High-Potential ARA Tracker (Discovery)")
     try:
-        # Taktik GHOST: Ambil data minimal dulu agar cepat
         max_p = cap / 100
+        # Taktik OMNI-LIGHT: Hanya scan dasar (Harga & Volume) agar sangat cepat
         q_fast = (Query().set_markets('indonesia')
-                 .select('name', 'close', 'change', 'sector')
+                 .select('name', 'close', 'change')
                  .where(Column('close') <= max_p, Column('average_volume_120d') >= 50000, Column('change') >= 2.0)
                  .order_by('change', ascending=False)
                  .limit(10))
         _, df_fast = q_fast.get_scanner_data()
         
         if not df_fast.empty:
-            valid_found = 0
-            cols = st.columns(2)
-            for row in df_fast.itertuples():
-                if valid_found >= 4: break # Limit tampilan agar tidak hang
-                
-                # Audit mendalam hanya untuk yang lolos scan cepat
-                res, p, sector, sl, prob = run_stealth_audit(row.name)
-                
-                if res and prob >= 80: # Filter 80% Win Prob
-                    with cols[valid_found % 2]:
-                        st.markdown(f"""
-                        <div class='stock-card'>
-                            <div style='display:flex; justify-content:space-between;'>
-                                <h2 style='margin:0; color:#a78bfa;'>{row.name}</h2>
-                                <span class='probability-badge'>{prob}% PROB</span>
-                            </div>
-                            <div style='margin-top:10px;'><span class='buy-zone'>ENTRY: Rp {int(p)}</span></div>
-                            <div class='pyramid-panel' style='font-size:11px;'>
-                                <b>Win-Rate:</b> High Conviction ✅<br>
-                                <b>Target TP:</b> {int(p*1.15)} | <b>SL:</b> {sl}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    valid_found += 1
-            if valid_found == 0: st.info("Sinyal ARA 80%+ belum terdeteksi. Kriteria sangat ketat.")
-        else: st.warning("Bursa belum merespons. Gunakan Audit Manual di bawah.")
-    except: st.error("⚠️ Jalur Satelit Macet. Gunakan Tactical Audit Manual.")
+            st.write("Klik emiten untuk audit 5-aspek instan:")
+            cols = st.columns(5)
+            for i, row in enumerate(df_fast.itertuples()):
+                with cols[i % 5]:
+                    if st.button(f"🎯 {row.name}"):
+                        st.session_state['target_ticker'] = row.name
+        else: st.info("Satelit sedang menyisir emiten potensial...")
+    except: st.error("⚠️ Jalur Discovery Macet. Gunakan Tactical Audit Manual di bawah.")
 else:
     st.info("🔴 RADAR STANDBY (Market Closed).")
 
-# --- 🛡️ TOOLS (TACTICAL SNIPER - INDESTRUCTIBLE) ---
+# --- 🛡️ THE SNIPER ACTION (TACTICAL AUDIT) ---
 st.divider()
 ca, cb = st.columns(2)
 with ca:
     st.subheader("🔍 All-Cap Tactical Sniper Audit")
-    tid_input = st.text_input("Ketik Kode Saham:", placeholder="Contoh: BRMS, WIFI...").upper()
+    # Mengambil target dari klik discovery atau input manual
+    saved_target = st.session_state.get('target_ticker', "")
+    tid_input = st.text_input("Sniper Target:", value=saved_target).upper()
+    
     if st.button("🚀 EKSEKUSI Sniper Audit"):
         if tid_input:
             with st.spinner(f"Interogasi Sniper {tid_input}..."):
-                res, p, sector, sl, prob = run_stealth_audit(tid_input)
+                res, p, sector, sl, prob = run_sniper_audit(tid_input)
                 if res:
-                    st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='color:#a78bfa;'>{tid_input}</h2><span class='probability-badge'>{prob}%</span></div><p>Price: <b>{int(p)}</b> | Sector: {sector}</p></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='color:#a78bfa;'>{tid_input}</h2><span class='probability-badge'>{prob}% PROB</span></div><p>Price: <b>{int(p)}</b> | Sector: {sector}</p></div>", unsafe_allow_html=True)
                     for k, v in res.items(): st.markdown(f"<span class='{'audit-pass' if v else 'audit-fail'}'>{'✅' if v else '❌'} {k}</span>", unsafe_allow_html=True)
                     st.markdown(f"""
                     <div class='pyramid-panel'>
@@ -144,7 +127,7 @@ with ca:
 
 with cb:
     st.subheader("🛡️ Portfolio")
-    pid = st.text_input("Add Ticker:").upper()
+    pid = st.text_input("Add to Portfolio:").upper()
     if st.button("🛒 ADD"): st.success(f"{pid} Ditambahkan!")
 
-st.caption("V79.0 | Ghost Bypass Mode | Anti-Hang Recovery")
+st.caption("V80.0 | Omni-Light Sniper Mode | Anti-Block Protocol")

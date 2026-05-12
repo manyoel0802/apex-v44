@@ -13,12 +13,13 @@ import concurrent.futures
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V57.0 ELITE COMMANDER", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V57.1 ELITE COMMANDER", layout="wide", page_icon="💎")
 
 # --- 🕵️ STEALTH HEADERS POOL ---
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 ]
 
@@ -52,6 +53,7 @@ is_market_open = datetime.strptime("08:30", "%H:%M").time() <= now.time() <= dat
 def get_market_context():
     try:
         idx = yf.Ticker("^JKSE").history(period="1y")
+        if idx.empty: return 0, True, 50
         curr = idx['Close'].iloc[-1]
         old = idx['Close'].iloc[-126]
         return (curr / old) - 1, curr > idx['Close'].rolling(50).mean().iloc[-1], 90
@@ -59,14 +61,13 @@ def get_market_context():
 
 @st.cache_data(ttl=600)
 def get_sector_momentum():
-    # Mengambil Top 3 Sektor terkuat dari TradingView
     try:
         q = (Query().set_markets('indonesia').select('sector','change')
              .where(Column('market_cap_basic') > 1e12).limit(100))
         _, df = q.get_scanner_data()
         top_sectors = df.groupby('sector')['change'].mean().sort_values(ascending=False).head(3).index.tolist()
         return top_sectors
-    except: return []
+    except: return ["Infrastructure", "Financials", "Energy"]
 
 @st.cache_data(ttl=300)
 def fetch_tradingview_stealth(max_p):
@@ -94,19 +95,15 @@ def run_deep_audit(ticker, ihsg_ret, top_sectors):
         if df.empty or len(df) < 150: return None, 0, "", 0
         
         c = df['Close'].iloc[-1]
-        # ATR Calculation for Dynamic SL
         atr = calculate_atr(df).iloc[-1]
-        dynamic_sl = int(c - (2 * atr)) # SL = Price - 2x ATR (Standard Elite)
+        dynamic_sl = int(c - (2 * atr))
         
-        # Sektoral Check
-        is_leader = any(s in top_sectors for s in [ticker]) # Simplified check
-        
+        is_leader = any(s in top_sectors for s in [ticker])
         s50, s200 = df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
         
-        # Bandarmologi Proxy (MFI & Flow)
         typical_price = (df['High'] + df['Low'] + df['Close']) / 3
         raw_money_flow = typical_price * df['Volume']
-        mfi = 50 # Default
+        mfi = 50
         if len(df) > 14:
             pos_flow = raw_money_flow.rolling(14).apply(lambda x: x[df['Close'].diff() > 0].sum(), raw=False)
             neg_flow = raw_money_flow.rolling(14).apply(lambda x: x[df['Close'].diff() < 0].sum(), raw=False)
@@ -114,7 +111,7 @@ def run_deep_audit(ticker, ihsg_ret, top_sectors):
 
         checks = {
             "Uptrend Status": bool(c > s50 > s200),
-            "Big Money Flow": bool(mfi > 55), # Akumulasi terdeteksi
+            "Big Money Flow": bool(mfi > 55),
             "Relative Strength": bool((c / df['Close'].iloc[-126]) - 1 > ihsg_ret)
         }
         
@@ -123,7 +120,7 @@ def run_deep_audit(ticker, ihsg_ret, top_sectors):
     except: return None, 0, "", 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V57.0 ELITE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Dynamic ATR SL | Sector Rotation Radar | Big Money Flow Logic 🕵️</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V57.1 ELITE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Dynamic ATR SL | Sector Rotation | Diagnostic Satellite Integrated 🛰️</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
@@ -132,10 +129,31 @@ with st.sidebar:
     mode = st.radio("🚀 Scan Type", ["Turbo (Fast)", "Deep (Champion Audit)"], index=1)
     rrr = st.number_input("Min RRR Target", value=3.0)
     bypass = st.toggle("🚨 Bypass Market Time", value=False)
+    
     st.divider()
+    # 🛠️ TOMBOL DIAGNOSTIK (RESTORED)
+    if st.button("🛠️ Jalankan Diagnosa API"):
+        with st.status("Memeriksa Jalur Radar...", expanded=True) as status:
+            st.write("Mengetuk Pintu TradingView...")
+            q_test = Query().set_markets('indonesia').select('name').limit(1)
+            try:
+                q_test.get_scanner_data()
+                st.success("✅ TradingView: TERKONEKSI")
+            except Exception as e:
+                st.error(f"❌ TradingView: TERBLOKIR ({str(e)[:50]}...)")
+            
+            st.write("Mengetuk Pintu Yahoo Finance...")
+            try:
+                yf_test = yf.Ticker("BBCA.JK").history(period="1d")
+                if not yf_test.empty: st.success("✅ yFinance: TERKONEKSI")
+                else: st.warning("⚠️ yFinance: RESPON KOSONG (Ban Ringan)")
+            except Exception as e:
+                st.error(f"❌ yFinance: TERBLOKIR ({str(e)[:50]}...)")
+            status.update(label="Diagnosa Selesai!", state="complete", expanded=False)
+
     if st.button("🔄 Segarkan Radar & Sektor"):
         st.cache_data.clear()
-        st.success("Radar & Sektor Re-Calibrated!")
+        st.success("Sistem Re-Calibrated!")
 
 # --- 🚀 MAIN DASHBOARD ---
 ihsg_ret, is_bullish, mkt_breadth = get_market_context()
@@ -163,33 +181,10 @@ if is_market_open or bypass:
             for i, (name, sector, checks, prc, label, sl) in enumerate(valid_signals):
                 tp = int(prc + (prc - sl) * rrr)
                 buy_high = int(prc * 1.03)
-                
                 with cols[i % 2]:
-                    st.markdown(f"""
-                    <div class='stock-card'>
-                        <div style='display:flex; justify-content:space-between;'>
-                            <h2 style='margin:0; color:#a78bfa;'>{name}</h2>
-                            <span class='sector-badge'>{label}</span>
-                        </div>
-                        <div style='margin-top:10px;'>
-                            <span class='buy-zone'>AREA ENTRY ELITE: {int(prc)} - {buy_high}</span>
-                        </div>
-                        <div style='display:flex; justify-content:space-between; margin-top:15px;'>
-                            <div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS (ATR-BASED)</p><p class='target-value' style='color:#f87171;'>{sl}</p></div>
-                            <div><p style='color:#9ca3af; font-size:11px;'>TARGET PROFIT ({rrr}R)</p><p class='target-value' style='color:#10b981;'>{tp}</p></div>
-                        </div>
-                        <div class='pyramid-panel'>
-                            <b style='color:#818cf8; font-size:11px;'>📐 ELITE COMMANDER PLAN:</b><br>
-                            <span style='font-size:11px;'>
-                            • <b>Big Money Index:</b> Akumulasi Terdeteksi ✅<br>
-                            • <b>Sektoral Strength:</b> Saham berada di gerbong terkuat bursa.<br>
-                            • <b>Volatility Adjust:</b> SL dilebarkan 2x ATR untuk menghindari 'Fakeout'.
-                            </span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-        else: st.info("Sektor terkuat sudah dipindai, belum ada sinyal 'Big Money' yang lolos kualifikasi.")
-    else: st.error("Koneksi Radar Terhambat. Coba Reset Stealth Session.")
+                    st.markdown(f"<div class='stock-card'><div style='display:flex; justify-content:space-between;'><h2 style='margin:0; color:#a78bfa;'>{name}</h2><span class='sector-badge'>{label}</span></div><div style='margin-top:10px;'><span class='buy-zone'>AREA ENTRY ELITE: {int(prc)} - {buy_high}</span></div><div style='display:flex; justify-content:space-between; margin-top:15px;'><div><p style='color:#9ca3af; font-size:11px;'>STOP LOSS (ATR)</p><p class='target-value' style='color:#f87171;'>{sl}</p></div><div><p style='color:#9ca3af; font-size:11px;'>TARGET ({rrr}R)</p><p class='target-value' style='color:#10b981;'>{tp}</p></div></div><div class='pyramid-panel'><b style='color:#818cf8; font-size:11px;'>📐 ELITE COMMANDER PLAN:</b><br><span style='font-size:11px;'>• Akumulasi Uang Besar Terdeteksi ✅<br>• Momentum Sektoral Terkonfirmasi.<br>• SL Dinamis berdasarkan Volatilitas (ATR).</span></div></div>", unsafe_allow_html=True)
+        else: st.info("Sektor terkuat sudah dipindai, belum ada sinyal 'Big Money' saat ini.")
+    else: st.error("Satelit Radar Buta. Klik 'Diagnosa API' untuk info lebih lanjut.")
 else: st.info("🔴 RADAR STANDBY.")
 
 # --- 🛡️ TOOLS ---
@@ -214,4 +209,4 @@ with cb:
     pid = st.text_input("Add to Portfolio:", key="port_in").upper()
     if st.button("🛒 EKSEKUSI"): st.success(f"Signal {pid} dikirim!")
 
-st.caption("V57.0 | Elite Commander Mode | Sector & ATR Integrated")
+st.caption("V57.1 | Elite Commander Mode | Diagnostic Satellite Ready")

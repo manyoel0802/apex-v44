@@ -13,7 +13,7 @@ import concurrent.futures
 
 # --- CONFIG & SECURITY ---
 warnings.filterwarnings('ignore')
-st.set_page_config(page_title="V57.5 ULTIMATE SYNC", layout="wide", page_icon="💎")
+st.set_page_config(page_title="V57.6 ELITE COMMANDER", layout="wide", page_icon="💎")
 
 # --- 🕵️ STEALTH HEADERS ---
 USER_AGENTS = [
@@ -43,10 +43,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- ⏳ CONTEXT ---
+# --- ⏳ CONTEXT & JADWAL OTOMATIS ---
 tz_wib = pytz.timezone('Asia/Jakarta')
 now = datetime.now(tz_wib)
-is_market_open = datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time()
+# Senin=0, Jumat=4
+is_weekday = 0 <= now.weekday() <= 4
+is_market_hours = datetime.strptime("08:30", "%H:%M").time() <= now.time() <= datetime.strptime("16:30", "%H:%M").time()
+is_market_active = is_weekday and is_market_hours
 
 @st.cache_data(ttl=300)
 def get_market_context():
@@ -76,18 +79,17 @@ def calculate_atr(df, window=14):
 
 def run_deep_audit(ticker, ihsg_ret, top_sectors):
     try:
-        time.sleep(random.uniform(0.1, 0.3))
+        time.sleep(random.uniform(0.1, 0.2))
         session = get_stealth_session()
         stock_obj = yf.Ticker(f"{ticker}.JK", session=session)
-        df = stock_obj.history(period="2y", auto_adjust=True, timeout=10)
-        if df.empty or len(df) < 100: return None, 0, "", 0
+        df = stock_obj.history(period="1y", auto_adjust=True)
+        if df.empty or len(df) < 80: return None, 0, "", 0
         
         c = df['Close'].iloc[-1]
         atr = calculate_atr(df).iloc[-1]
         dynamic_sl = int(c - (2 * atr))
-        
         is_leader = any(s in top_sectors for s in [ticker])
-        s50, s200 = df['Close'].rolling(50).mean().iloc[-1], df['Close'].rolling(200).mean().iloc[-1]
+        s50 = df['Close'].rolling(50).mean().iloc[-1]
         
         typical_price = (df['High'] + df['Low'] + df['Close']) / 3
         raw_money_flow = typical_price * df['Volume']
@@ -97,26 +99,23 @@ def run_deep_audit(ticker, ihsg_ret, top_sectors):
             neg_flow = raw_money_flow.rolling(14).apply(lambda x: x[df['Close'].diff() < 0].sum(), raw=False)
             mfi = 100 - (100 / (1 + (pos_flow / neg_flow.replace(0, 1e-10)).iloc[-1]))
 
-        checks = {
-            "Uptrend Status": bool(c > s50 or c > s200),
-            "Big Money Flow": bool(mfi > 50),
-            "Alpha RS Score": bool((c / df['Close'].iloc[-60] if len(df)>60 else 1) > 1)
-        }
-        
+        checks = {"Uptrend Status": bool(c > s50), "Big Money Flow": bool(mfi > 52), "Market Health": True}
         label = "🏆 SECTOR LEADER" if is_leader else "Breakout 🚀"
         return checks, float(c), label, dynamic_sl
     except: return None, 0, "", 0
 
 # --- 🛰️ HEADER ---
-st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V57.5 ULTIMATE SYNC</h1><p style='margin:0; opacity:0.8;'>Elite Commander Ready | Capital Default: 1M | Sync-Logic Locked 🕵️</p></div>", unsafe_allow_html=True)
+st.markdown(f"<div class='status-card'><h1 style='margin:0; font-size: 28px; color:#ddd6fe;'>💎 V57.6 ELITE COMMANDER</h1><p style='margin:0; opacity:0.8;'>Schedule: Mon-Fri 08:30-16:30 | Bypass Lockdown Restored 🕵️</p></div>", unsafe_allow_html=True)
 
 # --- 🎛️ SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Command Center")
-    # UPDATED DEFAULT VALUE TO 1,000,000
     cap = st.number_input("Capital Total (Rp)", value=1000000)
     mode = st.radio("🚀 Scan Sensitivity", ["Standard", "Aggressive"], index=0)
     st.divider()
+    # RESTORED FEATURE NAME
+    bypass = st.toggle("🚨 Bypass Market Lockdown", value=False)
+    
     if st.button("🛠️ Jalankan Diagnosa API"):
         with st.status("Sinkronisasi Jalur...", expanded=True) as status:
             st.cache_data.clear()
@@ -138,11 +137,9 @@ ihsg_ret, is_bullish, mkt_breadth = get_market_context()
 top_sectors = get_sector_momentum()
 max_p = cap / 100
 min_vol = 50000 if mode == "Standard" else 10000
-
-# SYNC LOGIC Check
 tv_health = st.session_state.get('tv_health', "OK")
 
-if is_market_open or st.sidebar.toggle("🚨 Bypass Market Time", value=False):
+if is_market_active or bypass:
     st.subheader(f"📡 Radar Result")
     
     if tv_health == "BAN":
@@ -152,11 +149,10 @@ if is_market_open or st.sidebar.toggle("🚨 Bypass Market Time", value=False):
             q = (Query().set_markets('indonesia').select('name','close','sector','average_volume_120d')
                  .where(Column('market_cap_basic') >= 1e11, Column('close') <= max_p, Column('average_volume_120d') >= min_vol).limit(30))
             _, df_raw = q.get_scanner_data()
-        except:
-            df_raw = pd.DataFrame()
+        except: df_raw = pd.DataFrame()
 
         if df_raw.empty:
-            st.warning(f"Sinyal Tidak Ditemukan. Tidak ada saham di bawah Rp {int(max_p)} saat ini. Coba naikkan Capital atau pilih 'Aggressive'.")
+            st.warning("Sinyal Tidak Ditemukan. Coba longgarkan filter atau naikkan Capital.")
         else:
             valid_signals = []
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
@@ -197,9 +193,9 @@ if is_market_open or st.sidebar.toggle("🚨 Bypass Market Time", value=False):
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
-            else: st.info("Sektor terkuat sudah dipindai, belum ada sinyal 'Big Money' yang lolos kualifikasi.")
+            else: st.info("Penyisiran selesai, belum ada saham yang lolos kualifikasi.")
 else:
-    st.info("🔴 RADAR STANDBY.")
+    st.info(f"🔴 RADAR STANDBY. (Jadwal: Senin-Jumat 08:30-16:30). Aktifkan Bypass Lockdown untuk operasional manual.")
 
 # --- 🛡️ TOOLS ---
 st.divider()
@@ -223,4 +219,4 @@ with cb:
     pid = st.text_input("Add to Portfolio:", key="port_in").upper()
     if st.button("🛒 EKSEKUSI"): st.success(f"Signal {pid} dikirim!")
 
-st.caption("V57.5 | Ultimate Sync | Capital 1M Default")
+st.caption("V57.6 | Scheduled Auto-Commander Mode")
